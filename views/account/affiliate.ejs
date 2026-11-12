@@ -1,23 +1,31 @@
 <%- include('../partials/head') %>
-<% const link = `${baseUrl}/r/${user.referral_code}`; %>
-<h1 class="page-title">Earn <%= settings.commission_rate %>% 💸</h1>
-<p class="muted">Share your link. When someone orders through it within 30 days, you earn <%= settings.commission_rate %>% of their order (excluding shipping), paid in USDC.</p>
+<% const link = `${baseUrl}/r/${user.referral_code}`;
+   const shareLine = `I've been shopping at ${settings.store_name} and wanted to share.${freeShipping ? ' Free shipping worldwide 🌍' : ''}`;
+   const shareText = `${shareLine} ${link}`; %>
+<h1 class="page-title">Share <%= settings.store_name %>. Earn <%= settings.commission_rate %>%.</h1>
+<p class="muted page-sub">Your style already sells clothes. Now it pays you back.</p>
+
+<ol class="steps">
+  <li><strong>Share your link</strong><span>WhatsApp, Instagram, TikTok, the group chat. Anywhere your people are.</span></li>
+  <li><strong>Friends shop</strong><span>Every order they pay for within 30 days of clicking counts for you.</span></li>
+  <li><strong>Get paid in USDC</strong><span>You earn <%= settings.commission_rate %>% of each order. Once it's delivered, cash out straight to your wallet.</span></li>
+</ol>
 
 <div class="card ref-card">
-  <div class="muted small">Your referral link</div>
+  <div class="muted small">Your personal link</div>
   <div class="copy-row"><input readonly value="<%= link %>" id="reflink"><button class="btn small" type="button" data-copy="#reflink">Copy</button></div>
   <div class="share-btns">
     <button class="btn small" type="button" data-share="<%= link %>" data-title="<%= settings.store_name %>">Share…</button>
-    <a class="btn small outline" target="_blank" rel="noopener" href="https://wa.me/?text=<%= encodeURIComponent('Check out ' + settings.store_name + ': ' + link) %>">WhatsApp</a>
-    <a class="btn small outline" target="_blank" rel="noopener" href="https://t.me/share/url?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent('Check out ' + settings.store_name) %>">Telegram</a>
-    <a class="btn small outline" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent('Check out ' + settings.store_name) %>">X</a>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://wa.me/?text=<%= encodeURIComponent(shareText) %>">WhatsApp</a>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://t.me/share/url?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent(shareLine) %>">Telegram</a>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent(shareLine) %>">X</a>
   </div>
-  <p class="muted small">Tip: you can also add <code>?ref=<%= user.referral_code %></code> to any product link.</p>
+  <p class="muted small">💡 Pro tip: specific pieces sell better than a homepage. Open any product and tap <em>Share</em>, and your link is built in. Or add <code>?ref=<%= user.referral_code %></code> to any <%= settings.store_name %> link.</p>
 </div>
 
 <div class="stats">
   <div class="stat accent"><div class="muted small">Available</div><div class="big-num"><%= usdc(bal.available) %></div></div>
-  <div class="stat"><div class="muted small">Pending</div><div class="big-num"><%= usdc(bal.pending) %></div></div>
+  <div class="stat"><div class="muted small">On the way</div><div class="big-num"><%= usdc(bal.pending) %></div></div>
   <div class="stat"><div class="muted small">Withdrawn</div><div class="big-num"><%= usdc(bal.withdrawn) %></div></div>
   <div class="stat"><div class="muted small">In payout</div><div class="big-num"><%= usdc(bal.requested) %></div></div>
   <div class="stat"><div class="muted small">Link clicks</div><div class="big-num"><%= st.clicks %></div></div>
@@ -51,7 +59,7 @@
         <code class="addr"><%= user.wallet_address %></code>
       </div>
     <% } else { %>
-      <p class="muted small">Add the wallet where you want to receive your USDC payouts.</p>
+      <p class="muted small">Where should we send your USDC? Add your wallet once and you're set.</p>
     <% } %>
     <details <%= user.wallet_address ? '' : 'open' %>>
       <summary><%= user.wallet_address ? 'Change wallet' : 'Add wallet' %></summary>
@@ -71,12 +79,12 @@
   </div>
 
   <div class="card" id="withdraw">
-    <h2>Withdraw</h2>
+    <h2>Cash out</h2>
     <p class="muted small">Minimum <%= usdc(settings.min_withdrawal_cents) %>. <%= settings.commission_hold_note %></p>
     <% if (!user.wallet_address) { %>
-      <p class="flash info">Save your USDC wallet first to request a withdrawal.</p>
+      <p class="flash info">Add your USDC wallet first, then you can cash out here.</p>
     <% } else if (bal.available < settings.min_withdrawal_cents) { %>
-      <p class="muted">You need at least <%= usdc(settings.min_withdrawal_cents) %> available to withdraw. Keep sharing!</p>
+      <p class="muted">You're <strong><%= usdc(settings.min_withdrawal_cents - bal.available) %></strong> away from your first cash-out (minimum <%= usdc(settings.min_withdrawal_cents) %>). One or two shares could do it.</p>
     <% } else { %>
       <form method="post" action="/account/withdraw" class="form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -87,14 +95,14 @@
           </div>
         </label>
         <p class="muted small">Sent to <code><%= user.wallet_address.slice(0, 6) %>…<%= user.wallet_address.slice(-4) %></code> on <%= networks[user.wallet_network] ? networks[user.wallet_network].label : user.wallet_network %>.</p>
-        <button class="btn block" type="submit">Request withdrawal</button>
+        <button class="btn block" type="submit">Send me my USDC</button>
       </form>
     <% } %>
   </div>
 </div>
 
 <h2>Withdrawal history</h2>
-<% if (!withdrawals.length) { %><p class="muted">No withdrawals yet.</p><% } else { %>
+<% if (!withdrawals.length) { %><p class="muted">No cash-outs yet. Your first one will show up here.</p><% } else { %>
   <div class="table-wrap"><table>
     <thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>Details</th></tr></thead>
     <tbody>
@@ -111,7 +119,7 @@
 <% } %>
 
 <h2>Commissions</h2>
-<% if (!commissions.length) { %><p class="muted">No referred orders yet. Share your link to start earning!</p><% } else { %>
+<% if (!commissions.length) { %><p class="muted">No orders through your link yet. Your first share is the hardest. Copy your link above and send it to three friends today.</p><% } else { %>
   <div class="table-wrap"><table>
     <thead><tr><th>Date</th><th>Order</th><th>Order value</th><th>Earned</th><th>Status</th></tr></thead>
     <tbody>

@@ -1,28 +1,47 @@
 <%- include('partials/head') %>
 <h1 class="page-title">Checkout</h1>
+<p class="muted page-sub">Step 1 of 2: where should we send it? Next, you'll pay on Stripe's secure page.</p>
 <% if (typeof error !== 'undefined' && error) { %><div class="flash error"><%= error %></div><% } %>
+<% if (!paymentsReady) { %>
+  <div class="flash info">Online payment is being set up and will be available very soon. Your cart is saved in the meantime.</div>
+<% } %>
 <div class="cart-layout">
   <form method="post" action="/checkout" class="card form">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <h2>Delivery details</h2>
+    <h2>Contact</h2>
+    <label>Email<input name="email" type="email" required value="<%= values.email || '' %>" autocomplete="email" placeholder="you@example.com"></label>
+    <label>Phone, for the courier<input name="phone" type="tel" required value="<%= values.phone || '' %>" autocomplete="tel" placeholder="+1 555 123 4567"></label>
+
+    <h2>Delivery address</h2>
     <label>Full name<input name="name" required value="<%= values.name || '' %>" autocomplete="name"></label>
-    <label>Email<input name="email" type="email" required value="<%= values.email || '' %>" autocomplete="email"></label>
-    <label>Phone<input name="phone" type="tel" required value="<%= values.phone || '' %>" autocomplete="tel"></label>
-    <label>Address<input name="address" required value="<%= values.address || '' %>" autocomplete="street-address"></label>
-    <label>City<input name="city" required value="<%= values.city || '' %>" autocomplete="address-level2"></label>
-    <label>Notes (optional)<textarea name="notes" rows="2"><%= values.notes || '' %></textarea></label>
-    <div class="pay-note">💵 Payment: <strong>cash on delivery</strong>. We'll contact you to confirm your order.</div>
-    <button class="btn block" type="submit">Place order · <%= money(cart.total) %></button>
-    <% if (!user) { %><p class="muted small">Have an account? <a href="/login?next=/checkout">Log in</a> to track your orders.</p><% } %>
+    <label>Country
+      <select name="country" required autocomplete="country">
+        <option value="">Choose your country</option>
+        <% countries.forEach(c => { %><option value="<%= c.code %>" <%= values.country === c.code ? 'selected' : '' %>><%= c.name %></option><% }) %>
+      </select>
+    </label>
+    <label>Street address<input name="address" required value="<%= values.address || '' %>" autocomplete="street-address" placeholder="Street, building, apartment"></label>
+    <div class="field-pair">
+      <label>City<input name="city" required value="<%= values.city || '' %>" autocomplete="address-level2"></label>
+      <label>Postal code<input name="postal_code" value="<%= values.postal_code || '' %>" autocomplete="postal-code" placeholder="If you have one"></label>
+    </div>
+    <label>Delivery notes (optional)<textarea name="notes" rows="2" placeholder="Gate code, landmark, best time to deliver…"><%= values.notes || '' %></textarea></label>
+
+    <div class="pay-note">
+      <strong>🔒 Secure payment by Stripe</strong>
+      <span>Pay by card on the next page. Your card details go straight to Stripe and never touch our servers.</span>
+    </div>
+    <button class="btn block" type="submit" <%= paymentsReady ? '' : 'disabled' %>>Continue to payment · <%= money(cart.total) %></button>
+    <% if (!user) { %><p class="muted small center">Already shop with us? <a href="/login?next=/checkout">Log in</a> to keep all your orders in one place.</p><% } %>
   </form>
   <div class="summary card">
-    <h2>Order summary</h2>
+    <h2>Your order</h2>
     <% cart.items.forEach(i => { %>
       <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= i.size %>)</span><span><%= money(i.line_cents) %></span></div>
     <% }) %>
     <hr>
     <div class="row"><span>Subtotal</span><span><%= money(cart.subtotal) %></span></div>
-    <div class="row"><span>Shipping</span><span><%= cart.shipping ? money(cart.shipping) : 'Free' %></span></div>
+    <div class="row"><span>Shipping</span><span><%= cart.shipping ? money(cart.shipping) : 'Free, worldwide' %></span></div>
     <div class="row total"><span>Total</span><span><%= money(cart.total) %></span></div>
   </div>
 </div>

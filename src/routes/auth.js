@@ -49,7 +49,7 @@ router.post('/login', (req, res, next) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     recordFailure(key);
-    return fail('Incorrect email or password.');
+    return fail("That email and password don't match. Please try again.");
   }
   attempts.delete(key);
   login(req, user.id, (err) => {
@@ -74,13 +74,13 @@ router.post('/register', (req, res, next) => {
   if (name.length < 2 || name.length > 80) return fail('Please enter your name.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160) return fail('Please enter a valid email address.');
   if (password.length < 8) return fail('Password must be at least 8 characters.');
-  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return fail('An account with this email already exists.');
+  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return fail('You already have an account with this email. Log in instead?');
 
   const aff = currentAffiliate(req, email);
   const id = createUser({ name, email, password, referredBy: aff ? aff.id : null });
   login(req, id, (err) => {
     if (err) return next(err);
-    flash(req, 'success', 'Account created! Share your link from the Earn page to start earning.');
+    flash(req, 'success', `Welcome to the crew, ${name.split(' ')[0]}! Your personal share link is ready on the Earn page.`);
     res.redirect(nextUrl || '/account');
   });
 });

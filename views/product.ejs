@@ -11,7 +11,7 @@
 
     <form method="post" action="/cart/add" id="add-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <div class="label-row"><strong>Size</strong><span class="muted small" id="stock-note"></span></div>
+      <div class="label-row"><strong>Choose your size</strong><span class="muted small" id="stock-note"></span></div>
       <div class="sizes">
         <% variants.forEach(v => { %>
           <label class="size <%= v.stock <= 0 ? 'disabled' : '' %>">
@@ -34,8 +34,13 @@
           <button class="btn outline" type="submit">Add to cart</button>
           <button class="btn" type="submit" name="buy_now" value="1">Buy now</button>
         </div>
+        <ul class="mini-perks">
+          <% if (freeShipping) { %><li>🌍 Free shipping worldwide</li><% } %>
+          <li>🔒 Secure payment by Stripe</li>
+        </ul>
       <% } else { %>
-        <button class="btn" disabled>Sold out</button>
+        <button class="btn" disabled>Sold out in every size</button>
+        <p class="muted small">This one flew off the shelves. Take a look at the pieces below.</p>
       <% } %>
     </form>
 
@@ -44,11 +49,12 @@
     <div class="share-box">
       <% if (user) { %>
         <% const link = `${baseUrl}/p/${product.slug}?ref=${user.referral_code}`; %>
-        <strong>Share this item & earn <%= settings.commission_rate %>%</strong>
+        <strong>Know someone who'd wear this?</strong>
+        <span class="small">Send them your link. If they buy, you earn <%= settings.commission_rate %>% of their order in USDC.</span>
         <div class="copy-row"><input readonly value="<%= link %>" id="plink"><button class="btn small" type="button" data-copy="#plink">Copy</button></div>
         <button class="btn small outline" type="button" data-share="<%= link %>" data-title="<%= product.name %>">Share…</button>
       <% } else { %>
-        <span>💸 Earn <%= settings.commission_rate %>% by sharing this item. <a href="/register?next=<%= encodeURIComponent('/p/' + product.slug) %>">Create an account</a></span>
+        <span>💸 <strong>Love it? Share it.</strong> Earn <%= settings.commission_rate %>% in USDC when friends buy through your link. <a href="/register?next=<%= encodeURIComponent('/p/' + product.slug) %>">Create a free account</a></span>
       <% } %>
     </div>
   </div>
@@ -56,7 +62,7 @@
 
 <% if (related.length) { %>
 <section>
-  <div class="section-head"><h2>You may also like</h2></div>
+  <div class="section-head"><h2>Goes well with</h2></div>
   <div class="grid"><% related.forEach(p => { %><%- include('partials/product-card', { p }) %><% }) %></div>
 </section>
 <% } %>

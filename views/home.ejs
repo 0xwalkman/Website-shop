@@ -1,16 +1,25 @@
 <%- include('partials/head') %>
 <section class="hero">
   <div>
-    <p class="eyebrow">New season</p>
+    <p class="eyebrow">New in at <%= settings.store_name %></p>
     <h1><%= settings.tagline %></h1>
-    <p class="muted">Free shipping on orders over <%= money(settings.free_shipping_over_cents) %>.</p>
-    <a class="btn" href="/shop">Shop now</a>
+    <p class="hero-sub">Easy fits made for real life, delivered <%= freeShipping ? 'free ' : '' %>to your door, wherever your door is.</p>
+    <div class="hero-ctas">
+      <a class="btn" href="/shop">Shop the collection</a>
+      <a class="btn ghost" href="/account/affiliate">Earn <%= settings.commission_rate %>% →</a>
+    </div>
   </div>
 </section>
 
+<ul class="perks">
+  <% if (freeShipping) { %><li><span>🌍</span><div><strong>Free worldwide shipping</strong><small>On every order, no minimum</small></div></li><% } %>
+  <li><span>🔒</span><div><strong>Secure checkout</strong><small>Card payments by Stripe</small></div></li>
+  <li><span>💸</span><div><strong>Share & earn <%= settings.commission_rate %>%</strong><small>Paid out in USDC</small></div></li>
+</ul>
+
 <% if (categories.length) { %>
 <section>
-  <div class="section-head"><h2>Categories</h2><a href="/shop">See all</a></div>
+  <div class="section-head"><h2>Shop by category</h2><a href="/shop">See everything</a></div>
   <div class="cat-scroller">
     <% categories.forEach(c => { %>
       <a class="cat" href="/shop?category=<%= c.slug %>">
@@ -23,16 +32,16 @@
 <% } %>
 
 <section>
-  <div class="section-head"><h2>New arrivals</h2><a href="/shop">See all</a></div>
+  <div class="section-head"><h2>Just landed</h2><a href="/shop">See everything</a></div>
   <% if (products.length) { %>
     <div class="grid"><% products.forEach(p => { %><%- include('partials/product-card', { p }) %><% }) %></div>
-  <% } else { %><p class="muted">No products yet.</p><% } %>
+  <% } else { %><p class="muted">The first drop is on its way. Check back soon.</p><% } %>
 </section>
 
 <section class="promo">
   <div>
-    <h2>Share & earn <%= settings.commission_rate %>%</h2>
-    <p>Get your personal link, share it with friends, and earn <%= settings.commission_rate %>% of every order they place — paid out in USDC.</p>
+    <h2>Your friends love your style. Get paid for it.</h2>
+    <p>Share your personal <%= settings.store_name %> link. Every time someone orders through it, you get <%= settings.commission_rate %>% of their order, sent in USDC straight to your wallet.</p>
   </div>
   <a class="btn light" href="/account/affiliate">Get my link</a>
 </section>

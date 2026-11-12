@@ -2,7 +2,7 @@
 <h1 class="page-title">Dashboard</h1>
 <div class="stats">
   <div class="stat accent"><div class="muted small">Revenue</div><div class="big-num"><%= money(s.revenue) %></div></div>
-  <div class="stat"><div class="muted small">Orders</div><div class="big-num"><%= s.orders %></div></div>
+  <div class="stat"><div class="muted small">Paid orders</div><div class="big-num"><%= s.orders %></div></div>
   <div class="stat"><div class="muted small">Products</div><div class="big-num"><%= s.products %></div></div>
   <div class="stat"><div class="muted small">Customers</div><div class="big-num"><%= s.customers %></div></div>
   <div class="stat"><div class="muted small">Commissions owed</div><div class="big-num"><%= usdc(s.commissionsOwed - s.paidOut > 0 ? s.commissionsOwed - s.paidOut : 0) %></div></div>
@@ -11,6 +11,7 @@
 <div class="quick-actions">
   <a class="btn" href="/admin/products/new">+ New product</a>
   <a class="btn outline" href="/admin/categories">+ New category</a>
+  <% if (adminPendingOrders) { %><a class="btn outline" href="/admin/orders?status=paid"><%= adminPendingOrders %> order(s) to ship</a><% } %>
   <% if (adminPendingWithdrawals) { %><a class="btn outline" href="/admin/withdrawals"><%= adminPendingWithdrawals %> withdrawal request(s)</a><% } %>
 </div>
 

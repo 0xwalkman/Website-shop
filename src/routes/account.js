@@ -8,8 +8,12 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', (req, res) => {
-  const orders = db.prepare('SELECT * FROM orders WHERE user_id = ? OR (user_id IS NULL AND email = ?) ORDER BY id DESC LIMIT 50')
-    .all(req.user.id, req.user.email);
+  // Abandoned checkouts (never paid, then cancelled) are hidden from the customer's list.
+  // Only orders placed while logged in: emails are not verified, so matching guest orders by email
+  // would let anyone who registers with someone else's address see their orders.
+  const orders = db.prepare(`SELECT * FROM orders WHERE user_id = ?
+                             AND NOT (status = 'cancelled' AND paid_at IS NULL) ORDER BY id DESC LIMIT 50`)
+    .all(req.user.id);
   res.render('account/index', { title: 'My account', orders, bal: balances(req.user.id) });
 });
 
@@ -75,7 +79,7 @@ router.post('/wallet', (req, res) => {
   } else {
     db.prepare("UPDATE users SET wallet_network = ?, wallet_address = ?, wallet_updated_at = datetime('now') WHERE id = ?")
       .run(network, address, req.user.id);
-    flash(req, 'success', 'Wallet address saved.');
+    flash(req, 'success', 'Wallet saved. Your USDC payouts will go here.');
   }
   res.redirect('/account/affiliate#wallet');
 });
@@ -87,7 +91,7 @@ router.post('/withdraw', (req, res) => {
   const back = () => res.redirect('/account/affiliate#withdraw');
 
   if (!user.wallet_address || !user.wallet_network) {
-    flash(req, 'error', 'Please save your USDC wallet address before requesting a withdrawal.');
+    flash(req, 'error', 'Add your USDC wallet first so we know where to send your money.');
     return back();
   }
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -107,8 +111,8 @@ router.post('/withdraw', (req, res) => {
     return true;
   });
   flash(req, ok ? 'success' : 'error', ok
-    ? `Withdrawal of ${(amount / 100).toFixed(2)} USDC requested. You will be notified once it is sent.`
-    : 'Amount is higher than your available balance.');
+    ? `Done! ${(amount / 100).toFixed(2)} USDC is on its way. You'll see the transaction here as soon as it's sent.`
+    : "That's more than your available balance. Try a smaller amount.");
   back();
 });
 

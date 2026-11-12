@@ -1,7 +1,17 @@
 </main>
 <footer class="footer wrap">
-  <p><strong><%= settings.store_name %></strong> — <%= settings.tagline %></p>
-  <p class="muted">Share your link and earn <%= settings.commission_rate %>% on every order. <a href="/account/affiliate">Learn more</a></p>
+  <div class="footer-grid">
+    <div>
+      <p class="footer-brand"><%= settings.store_name %></p>
+      <p class="muted"><%= settings.tagline %></p>
+    </div>
+    <ul class="footer-perks">
+      <% if (freeShipping) { %><li>🌍 Free shipping worldwide</li><% } %>
+      <li>🔒 Secure card payments by Stripe</li>
+      <li>💸 <a href="/account/affiliate">Earn <%= settings.commission_rate %>% sharing your link</a></li>
+    </ul>
+  </div>
+  <p class="muted small">© <%= new Date().getFullYear() %> <%= settings.store_name %></p>
 </footer>
 <nav class="bottom-nav">
   <a href="/" class="<%= path === '/' ? 'active' : '' %>"><span>🏠</span>Home</a>

@@ -1,5 +1,13 @@
 <%- include('_head') %>
 <h1 class="page-title">Settings</h1>
+<div class="card">
+  <h2>Payments (Stripe)</h2>
+  <div class="row"><span>Stripe API key</span><span class="status <%= stripeReady ? 'delivered' : 'cancelled' %>"><%= stripeReady ? 'connected' : 'missing' %></span></div>
+  <div class="row"><span>Webhook secret</span><span class="status <%= webhookReady ? 'delivered' : 'pending' %>"><%= webhookReady ? 'connected' : 'missing' %></span></div>
+  <% if (!stripeReady || !webhookReady) { %>
+    <p class="muted small">Set <code>STRIPE_SECRET_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> on the server and restart it. Point a Stripe webhook at <code><%= baseUrl %>/stripe/webhook</code> with the events <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>, <code>checkout.session.async_payment_failed</code>, <code>checkout.session.expired</code> and <code>charge.refunded</code>. See the README for details.</p>
+  <% } %>
+</div>
 <form method="post" action="/admin/settings" class="form">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <div class="two-col">
@@ -7,9 +15,14 @@
       <h2>Store</h2>
       <label>Store name<input name="store_name" value="<%= settings.store_name %>" maxlength="60"></label>
       <label>Tagline<input name="tagline" value="<%= settings.tagline %>" maxlength="140"></label>
-      <label>Currency symbol<input name="currency_symbol" value="<%= settings.currency_symbol %>" maxlength="4"></label>
-      <label>Shipping fee<input name="shipping" inputmode="decimal" value="<%= (settings.shipping_cents / 100).toFixed(2) %>"></label>
-      <label>Free shipping over (0 = never)<input name="free_shipping_over" inputmode="decimal" value="<%= (settings.free_shipping_over_cents / 100).toFixed(2) %>"></label>
+      <label>Currency
+        <select name="currency">
+          <% Object.entries(currencies).forEach(([code, sym]) => { %><option value="<%= code %>" <%= settings.currency === code ? 'selected' : '' %>><%= code.toUpperCase() %> (<%= sym %>)</option><% }) %>
+        </select>
+      </label>
+      <p class="muted small">Affiliates are paid 1 USDC per 1 unit of this currency, so USD is recommended.</p>
+      <label>Shipping fee per order (0 = free shipping)<input name="shipping" inputmode="decimal" value="<%= (settings.shipping_cents / 100).toFixed(2) %>"></label>
+      <label>Free shipping over (0 = not used)<input name="free_shipping_over" inputmode="decimal" value="<%= (settings.free_shipping_over_cents / 100).toFixed(2) %>"></label>
     </div>
     <div class="card">
       <h2>Affiliate program</h2>

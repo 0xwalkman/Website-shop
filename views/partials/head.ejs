@@ -4,10 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111111">
-  <title><%= title ? `${title} · ${settings.store_name}` : settings.store_name %></title>
+  <% const pageTitle = title ? `${title} · ${settings.store_name}` : `${settings.store_name} · ${settings.tagline}`;
+     const m = typeof meta !== 'undefined' && meta ? meta : {};
+     const pageDesc = m.description || `${settings.tagline} ${freeShipping ? 'Free shipping worldwide on every order. ' : ''}Pay securely by card.`; %>
+  <title><%= pageTitle %></title>
+  <meta name="description" content="<%= pageDesc %>">
+  <meta property="og:site_name" content="<%= settings.store_name %>">
+  <meta property="og:title" content="<%= title || settings.store_name %>">
+  <meta property="og:description" content="<%= pageDesc %>">
+  <meta property="og:type" content="<%= m.image ? 'product' : 'website' %>">
+  <% if (m.image) { %><meta property="og:image" content="<%= m.image %>"><meta name="twitter:card" content="summary_large_image"><% } %>
   <link rel="stylesheet" href="/public/css/style.css">
 </head>
 <body>
+<% if (freeShipping) { %><div class="announce">🌍 Free shipping worldwide, on every order</div><% } %>
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="logo" href="/"><%= settings.store_name %></a>

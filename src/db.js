@@ -62,12 +62,19 @@ CREATE TABLE IF NOT EXISTS orders (
   phone TEXT NOT NULL,
   address TEXT NOT NULL,
   city TEXT NOT NULL,
+  postal_code TEXT NOT NULL DEFAULT '',
+  country TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   subtotal_cents INTEGER NOT NULL,
   shipping_cents INTEGER NOT NULL,
   total_cents INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
+  status TEXT NOT NULL DEFAULT 'unpaid',
+  currency TEXT NOT NULL DEFAULT 'usd',
   affiliate_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  commission_rate REAL NOT NULL DEFAULT 0,
+  stripe_session_id TEXT,
+  stripe_payment_intent TEXT,
+  paid_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -127,6 +134,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires INTEGER NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_variants_product ON product_variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_orders_affiliate ON orders(affiliate_id);
@@ -135,6 +143,22 @@ CREATE INDEX IF NOT EXISTS idx_clicks_affiliate ON referral_clicks(affiliate_id)
 CREATE INDEX IF NOT EXISTS idx_commissions_affiliate ON commissions(affiliate_id);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id);
 `);
+
+/* ---------- migrations for databases created by earlier versions ---------- */
+
+function addColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+addColumn('orders', 'postal_code', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'country', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'currency', "TEXT NOT NULL DEFAULT 'usd'");
+addColumn('orders', 'commission_rate', 'REAL NOT NULL DEFAULT 0');
+addColumn('orders', 'stripe_session_id', 'TEXT');
+addColumn('orders', 'stripe_payment_intent', 'TEXT');
+addColumn('orders', 'paid_at', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_session_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_orders_pi ON orders(stripe_payment_intent)');
 
 /* ---------- helpers ---------- */
 
@@ -152,19 +176,33 @@ function tx(fn) {
 
 const DEFAULT_SETTINGS = {
   store_name: 'Outouf',
-  tagline: 'Everyday clothing, delivered.',
+  tagline: "Clothes you'll actually live in.",
+  currency: 'usd',
   currency_symbol: '$',
-  shipping_cents: '500',
-  free_shipping_over_cents: '10000',
+  shipping_cents: '0',
+  free_shipping_over_cents: '0',
   commission_rate: '10',
   min_withdrawal_cents: '1000',
-  commission_hold_note: 'Commissions become available once the referred order is delivered.',
+  commission_hold_note: "Earnings unlock as soon as your friend's order is delivered.",
 };
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
-// Databases created before the store was named keep the old placeholder name; rename them.
-db.prepare("UPDATE settings SET value = 'Outouf' WHERE key = 'store_name' AND value = 'Threadline'").run();
+
+// One-time updates for stores created by earlier versions: rename the placeholder store,
+// replace the old default copy, and switch to free worldwide shipping.
+function runOnce(flag, fn) {
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(flag)) return;
+  fn();
+  insertSetting.run(flag, new Date().toISOString());
+}
+runOnce('migration_brand_v1', () => {
+  const upd = db.prepare('UPDATE settings SET value = ? WHERE key = ? AND value = ?');
+  upd.run('Outouf', 'store_name', 'Threadline');
+  upd.run(DEFAULT_SETTINGS.tagline, 'tagline', 'Everyday clothing, delivered.');
+  upd.run(DEFAULT_SETTINGS.commission_hold_note, 'commission_hold_note', 'Commissions become available once the referred order is delivered.');
+  db.prepare("UPDATE settings SET value = '0' WHERE key IN ('shipping_cents', 'free_shipping_over_cents')").run();
+});
 
 function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();
@@ -256,12 +294,12 @@ function seedDemo() {
       catIds[name] = Number(insCat.run(name, slugify(name), order).lastInsertRowid);
     }
     const products = [
-      ['T-Shirts', 'Classic Cotton Tee', 'Soft 100% organic cotton tee with a relaxed fit.', [['S', 1900], ['M', 1900], ['L', 1900], ['XL', 2200]]],
-      ['T-Shirts', 'Oversized Graphic Tee', 'Heavyweight oversized tee with a minimal print.', [['S', 2900], ['M', 2900], ['L', 2900], ['XL', 3200]]],
-      ['Hoodies', 'Everyday Zip Hoodie', 'Brushed fleece inside, durable zip, kangaroo pockets.', [['S', 4900], ['M', 4900], ['L', 4900], ['XL', 5400], ['XXL', 5900]]],
-      ['Hoodies', 'Cropped Pullover', 'Cropped fit pullover hoodie in garment-dyed fleece.', [['XS', 4500], ['S', 4500], ['M', 4500], ['L', 4500]]],
-      ['Jeans', 'Straight Leg Denim', 'Rigid 13oz denim, straight leg, mid rise.', [['28', 5900], ['30', 5900], ['32', 5900], ['34', 5900], ['36', 6400]]],
-      ['Dresses', 'Linen Midi Dress', 'Breathable linen midi dress with adjustable straps.', [['XS', 6900], ['S', 6900], ['M', 6900], ['L', 6900]]],
+      ['T-Shirts', 'Classic Cotton Tee', 'The tee you reach for first. Soft cotton, a relaxed fit that skims rather than clings, and a neckline that keeps its shape wash after wash.', [['S', 1900], ['M', 1900], ['L', 1900], ['XL', 2200]]],
+      ['T-Shirts', 'Oversized Graphic Tee', 'Heavyweight cotton, dropped shoulders and one small print that does the talking. Wear it loose, tuck it in, or throw it over everything.', [['S', 2900], ['M', 2900], ['L', 2900], ['XL', 3200]]],
+      ['Hoodies', 'Everyday Zip Hoodie', 'Brushed fleece on the inside, a zip that will not quit, and pockets deep enough for your hands and your phone. Made for cold mornings and late nights.', [['S', 4900], ['M', 4900], ['L', 4900], ['XL', 5400], ['XXL', 5900]]],
+      ['Hoodies', 'Cropped Pullover', 'A cropped hoodie in garment-dyed fleece, so every piece has a soft, lived-in colour. Made for high-waisted jeans.', [['XS', 4500], ['S', 4500], ['M', 4500], ['L', 4500]]],
+      ['Jeans', 'Straight Leg Denim', 'Rigid 13oz denim that breaks in to fit you. Straight leg, mid rise, and the kind of jeans that only get better with time.', [['28', 5900], ['30', 5900], ['32', 5900], ['34', 5900], ['36', 6400]]],
+      ['Dresses', 'Linen Midi Dress', 'Light, breathable linen that moves with you. Adjustable straps and a midi length that works from a beach lunch to a late dinner.', [['XS', 6900], ['S', 6900], ['M', 6900], ['L', 6900]]],
     ];
     for (const [cat, name, desc, variants] of products) {
       const pid = Number(insProd.run(catIds[cat], name, slugify(name), desc).lastInsertRowid);

@@ -25,14 +25,24 @@ function validateWallet(network, address) {
 
 /**
  * Commission lifecycle (driven by the order status):
- *   order pending / paid / shipped -> commission "pending"  (not withdrawable yet)
- *   order delivered               -> commission "approved" (withdrawable)
- *   order cancelled               -> commission "cancelled"
+ *   order unpaid                 -> no commission yet (created once Stripe confirms payment)
+ *   order paid / shipped         -> commission "pending"   (not withdrawable yet)
+ *   order delivered              -> commission "approved"  (withdrawable)
+ *   order cancelled / refunded   -> commission "cancelled"
  */
 function commissionStatusFor(orderStatus) {
   if (orderStatus === 'delivered') return 'approved';
-  if (orderStatus === 'cancelled') return 'cancelled';
+  if (orderStatus === 'cancelled' || orderStatus === 'refunded') return 'cancelled';
   return 'pending';
+}
+
+// Creates the commission for a paid order that came through an affiliate link (idempotent).
+function ensureCommission(orderId) {
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!o || !o.affiliate_id || !(o.commission_rate > 0)) return;
+  const amount = Math.floor(o.subtotal_cents * o.commission_rate / 100);
+  db.prepare(`INSERT OR IGNORE INTO commissions (affiliate_id, order_id, order_amount_cents, rate, amount_cents, status)
+              VALUES (?, ?, ?, ?, ?, 'pending')`).run(o.affiliate_id, o.id, o.subtotal_cents, o.commission_rate, amount);
 }
 
 function syncCommission(orderId, orderStatus) {
@@ -64,9 +74,10 @@ function balances(userId) {
 
 function stats(userId) {
   const clicks = db.prepare('SELECT COUNT(*) AS n FROM referral_clicks WHERE affiliate_id = ?').get(userId).n;
-  const orders = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE affiliate_id = ? AND status != 'cancelled'").get(userId).n;
-  const sales = db.prepare("SELECT COALESCE(SUM(subtotal_cents), 0) AS s FROM orders WHERE affiliate_id = ? AND status != 'cancelled'").get(userId).s;
+  const counted = "status IN ('paid', 'shipped', 'delivered')";
+  const orders = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE affiliate_id = ? AND ${counted}`).get(userId).n;
+  const sales = db.prepare(`SELECT COALESCE(SUM(subtotal_cents), 0) AS s FROM orders WHERE affiliate_id = ? AND ${counted}`).get(userId).s;
   return { clicks, orders, sales, conversion: clicks ? (orders / clicks) * 100 : 0 };
 }
 
-module.exports = { NETWORKS, validateWallet, syncCommission, commissionStatusFor, balances, stats };
+module.exports = { NETWORKS, validateWallet, syncCommission, ensureCommission, commissionStatusFor, balances, stats };

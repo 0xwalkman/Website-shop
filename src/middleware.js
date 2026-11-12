@@ -53,7 +53,7 @@ function csrf(req, res, next) {
     const a = Buffer.from(sent);
     const b = Buffer.from(req.session.csrf);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      return res.status(403).render('error', { title: 'Session expired', message: 'Your session expired. Please go back, refresh the page and try again.' });
+      return res.status(403).render('error', { title: 'Let’s try that again', message: 'Your page was open a little too long. Go back, refresh, and try once more.' });
     }
   }
   next();
@@ -62,6 +62,7 @@ function csrf(req, res, next) {
 function locals(req, res, next) {
   const settings = getSettings();
   res.locals.settings = settings;
+  res.locals.freeShipping = settings.shipping_cents === 0; // drives the "free worldwide shipping" copy
   res.locals.user = req.user || null;
   res.locals.path = req.path;
   res.locals.flash = req.session.flash || null;
@@ -80,7 +81,7 @@ function flash(req, type, message) {
 
 function requireAuth(req, res, next) {
   if (req.user) return next();
-  flash(req, 'info', 'Please log in to continue.');
+  flash(req, 'info', 'Log in or create a free account to continue.');
   res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
 

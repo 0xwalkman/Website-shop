@@ -268,3 +268,40 @@ tr:last-child td { border-bottom: 0; }
   .sticky-actions { justify-content: flex-end; }
   .sticky-actions .btn { flex: 0 0 auto; min-width: 160px; }
 }
+
+/* ---- Copy & checkout additions ---- */
+.announce { background: var(--ink); color: #fff; text-align: center; font-size: 13px; font-weight: 600; padding: 7px 12px; letter-spacing: .01em; }
+.page-sub { margin: -6px 0 16px; }
+.hero-sub { color: #e5e5e5; font-size: 1.05rem; max-width: 34ch; }
+.hero-ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.5); }
+.hero .btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.5); }
+.perks { list-style: none; padding: 0; margin: 14px 0 4px; display: grid; gap: 8px; }
+.perks li { display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
+.perks span { font-size: 22px; }
+.perks strong { display: block; font-size: 14px; }
+.perks small { color: var(--muted); }
+.mini-perks { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.pay-note { display: grid; gap: 4px; }
+.pay-note span { color: var(--muted); font-size: 13px; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.benefits { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 6px; font-size: 14px; }
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.steps li { counter-increment: step; position: relative; background: #fff; border-radius: 12px; padding: 12px 14px 12px 52px; box-shadow: var(--shadow); display: grid; gap: 2px; }
+.steps li::before { content: counter(step); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 13px; }
+.steps span { color: var(--muted); font-size: 14px; }
+.tracker { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tracker li { text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); padding-top: 12px; border-top: 4px solid var(--line); }
+.tracker li.done { color: var(--ink); border-color: var(--ok); }
+.promo.slim { margin: 0 0 16px; }
+.promo.slim h2 { font-size: 1.15rem; }
+.status.unpaid { background: #fff4d6; color: #8a6100; }
+.status.refunded { background: #f0eee9; color: #555; }
+.footer-grid { display: grid; gap: 12px; }
+.footer-brand { font-weight: 800; font-size: 1.2rem; color: var(--ink); margin: 0; letter-spacing: -.03em; }
+.footer-perks { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+@media (min-width: 640px) {
+  .perks { grid-template-columns: repeat(3, 1fr); }
+  .steps { grid-template-columns: repeat(3, 1fr); }
+  .footer-grid { grid-template-columns: 1fr auto; }
+}

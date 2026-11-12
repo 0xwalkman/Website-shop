@@ -9,6 +9,7 @@ const multer = require('multer');
 const { db } = require('./src/db');
 const SqliteStore = require('./src/session-store')(session);
 const mw = require('./src/middleware');
+const payments = require('./src/payments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,19 @@ app.use((req, res, next) => {
 
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
+// Stripe webhook: needs the raw request body to verify the signature, so it is registered
+// before the body parsers, sessions and CSRF checks.
+app.post('/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
+  if (!payments.enabled() || !process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).send('Stripe is not configured');
+  try {
+    const type = await payments.handleWebhook(req.body, req.get('stripe-signature'));
+    res.json({ received: true, type });
+  } catch (err) {
+    console.error('[stripe] Webhook rejected:', err.message);
+    res.status(400).send(`Webhook error: ${err.message}`);
+  }
+});
+
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 app.use(session({
@@ -90,6 +104,10 @@ app.use((err, req, res, next) => {
   res.status(500).render('error', { title: 'Something went wrong', message: 'An unexpected error occurred. Please try again.' });
 });
 
+setInterval(() => payments.sweepStale().catch((e) => console.error(e)), 10 * 60 * 1000).unref();
+
 app.listen(PORT, () => {
   console.log(`Store running on http://localhost:${PORT}`);
+  if (!payments.enabled()) console.warn('[warn] STRIPE_SECRET_KEY is not set: checkout is disabled until you add it.');
+  else if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[warn] STRIPE_WEBHOOK_SECRET is not set: payments are only confirmed when shoppers return from Stripe.');
 });

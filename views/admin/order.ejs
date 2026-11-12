@@ -1,8 +1,9 @@
 <%- include('_head') %>
 <div class="section-head">
   <h1 class="page-title">Order #<%= order.id %></h1>
-  <span class="status <%= order.status %>"><%= order.status %></span>
+  <span class="status <%= order.status %>"><%= order.status === 'unpaid' ? 'awaiting payment' : order.status %></span>
 </div>
+<% if (order.status === 'unpaid') { %><div class="flash info">The customer is on the Stripe payment page, or left it. Unpaid checkouts cancel themselves and return their stock after about an hour.</div><% } %>
 <div class="two-col">
   <div class="card">
     <h2>Items</h2>
@@ -19,9 +20,10 @@
     <p><strong><%= order.customer_name %></strong><br>
       <a href="mailto:<%= order.email %>"><%= order.email %></a><br>
       <a href="tel:<%= order.phone %>"><%= order.phone %></a><br>
-      <%= order.address %>, <%= order.city %></p>
+      <%= order.address %><br><%= order.city %><%= order.postal_code ? ' ' + order.postal_code : '' %><br><strong><%= order.country %></strong></p>
     <% if (order.notes) { %><p class="muted">Note: <%= order.notes %></p><% } %>
-    <p class="muted small">Placed <%= order.created_at %> UTC · updated <%= order.updated_at %> UTC</p>
+    <p class="muted small">Placed <%= order.created_at %> UTC<% if (order.paid_at) { %> · paid <%= order.paid_at %> UTC<% } %> · updated <%= order.updated_at %> UTC</p>
+    <% if (order.stripe_payment_intent) { %><p class="small">Stripe payment: <code><%= order.stripe_payment_intent %></code></p><% } %>
 
     <h2>Update status</h2>
     <form method="post" action="/admin/orders/<%= order.id %>/status" class="form">
@@ -32,8 +34,14 @@
         <% }) %>
       </div>
       <button class="btn" type="submit">Update</button>
-      <p class="muted small">Cancelling returns items to stock. Affiliate commission becomes withdrawable when the order is <strong>delivered</strong>.</p>
+      <p class="muted small">Cancelling returns items to stock but does <strong>not</strong> refund the customer. Use the refund button for that. The affiliate commission becomes withdrawable when the order is <strong>delivered</strong>.</p>
     </form>
+    <% if (stripeReady && order.stripe_payment_intent && ['paid', 'shipped', 'delivered', 'cancelled'].includes(order.status)) { %>
+      <form method="post" action="/admin/orders/<%= order.id %>/refund" data-confirm="Refund <%= money(order.total_cents) %> to the customer's card through Stripe? This cannot be undone.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn danger block" type="submit">Refund <%= money(order.total_cents) %> via Stripe</button>
+      </form>
+    <% } %>
   </div>
 </div>
 <% if (commission) { %>

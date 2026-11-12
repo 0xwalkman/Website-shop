@@ -1,8 +1,8 @@
 <%- include('_head') %>
 <h1 class="page-title">Orders</h1>
 <div class="chips-row">
-  <a class="chip <%= !status ? 'active' : '' %>" href="/admin/orders">All</a>
-  <% statuses.forEach(st => { %><a class="chip <%= status === st ? 'active' : '' %>" href="/admin/orders?status=<%= st %>"><%= st %></a><% }) %>
+  <a class="chip <%= !status ? 'active' : '' %>" href="/admin/orders">All paid</a>
+  <% statuses.forEach(st => { %><a class="chip <%= status === st ? 'active' : '' %>" href="/admin/orders?status=<%= st %>"><%= st === 'paid' ? 'to ship' : (st === 'unpaid' ? 'awaiting payment' : st) %></a><% }) %>
 </div>
 <% if (!orders.length) { %><p class="muted">No orders.</p><% } %>
 <div class="list">
@@ -10,10 +10,10 @@
     <a class="list-item" href="/admin/orders/<%= o.id %>">
       <div>
         <strong>#<%= o.id %> · <%= o.customer_name %></strong>
-        <div class="muted small"><%= o.created_at %> · <%= o.item_count %> item(s) · <%= o.city %></div>
+        <div class="muted small"><%= o.created_at %> · <%= o.item_count %> item(s) · <%= o.city %><%= o.country ? ', ' + o.country : '' %></div>
         <% if (o.affiliate_name) { %><div class="small">🔗 via <%= o.affiliate_name %></div><% } %>
       </div>
-      <span class="status <%= o.status %>"><%= o.status %></span>
+      <span class="status <%= o.status %>"><%= o.status === 'unpaid' ? 'awaiting payment' : o.status %></span>
       <strong><%= money(o.total_cents) %></strong>
     </a>
   <% }) %>

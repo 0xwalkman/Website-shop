@@ -3,11 +3,16 @@ const path = require('node:path');
 const express = require('express');
 const { db, tx, setSetting, uniqueSlug } = require('../db');
 const { flash, parseMoney, toArray } = require('../middleware');
-const { syncCommission, balances, NETWORKS } = require('../affiliate');
+const { balances, NETWORKS } = require('../affiliate');
+const payments = require('../payments');
 
 const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
-const ORDER_STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
+const ORDER_STATUSES = ['unpaid', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
+// Statuses an admin can set by hand. "refunded" goes through the Stripe refund button instead.
+const MANUAL_STATUSES = ['paid', 'shipped', 'delivered', 'cancelled'];
+// Stripe settles these with two decimals, which matches how prices are stored.
+const CURRENCIES = { usd: '$', eur: '€', gbp: '£', cad: 'CA$', aud: 'A$', chf: 'CHF', aed: 'AED', sar: 'SAR', mad: 'MAD' };
 
 function removeUpload(file) {
   if (file && file.startsWith('/uploads/')) {
@@ -20,7 +25,7 @@ function uploadedPath(req) {
 
 router.use((req, res, next) => {
   res.locals.adminPendingWithdrawals = db.prepare("SELECT COUNT(*) AS n FROM withdrawals WHERE status = 'pending'").get().n;
-  res.locals.adminPendingOrders = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'pending'").get().n;
+  res.locals.adminPendingOrders = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'paid'").get().n; // paid, waiting to ship
   next();
 });
 
@@ -28,8 +33,8 @@ router.use((req, res, next) => {
 
 router.get('/', (req, res) => {
   const s = {
-    revenue: db.prepare("SELECT COALESCE(SUM(total_cents),0) AS v FROM orders WHERE status != 'cancelled'").get().v,
-    orders: db.prepare("SELECT COUNT(*) AS v FROM orders").get().v,
+    revenue: db.prepare("SELECT COALESCE(SUM(total_cents),0) AS v FROM orders WHERE status IN ('paid','shipped','delivered')").get().v,
+    orders: db.prepare("SELECT COUNT(*) AS v FROM orders WHERE status IN ('paid','shipped','delivered')").get().v,
     products: db.prepare('SELECT COUNT(*) AS v FROM products').get().v,
     customers: db.prepare('SELECT COUNT(*) AS v FROM users WHERE is_admin = 0').get().v,
     commissionsOwed: db.prepare("SELECT COALESCE(SUM(amount_cents),0) AS v FROM commissions WHERE status IN ('pending','approved')").get().v,
@@ -37,7 +42,7 @@ router.get('/', (req, res) => {
     lowStock: db.prepare(`SELECT v.*, p.name AS product_name, p.id AS pid FROM product_variants v
                           JOIN products p ON p.id = v.product_id WHERE v.stock <= 3 ORDER BY v.stock LIMIT 10`).all(),
   };
-  const recent = db.prepare('SELECT * FROM orders ORDER BY id DESC LIMIT 8').all();
+  const recent = db.prepare("SELECT * FROM orders WHERE paid_at IS NOT NULL OR status NOT IN ('unpaid', 'cancelled') ORDER BY id DESC LIMIT 8").all();
   res.render('admin/dashboard', { title: 'Dashboard', s, recent });
 });
 
@@ -240,10 +245,12 @@ router.post('/products/:id/delete', (req, res) => {
 
 router.get('/orders', (req, res) => {
   const status = ORDER_STATUSES.includes(req.query.status) ? req.query.status : '';
+  // By default hide checkouts that were never paid (abandoned Stripe pages); they have their own filters.
+  const where = status ? 'WHERE o.status = ?' : "WHERE o.paid_at IS NOT NULL OR o.status NOT IN ('unpaid', 'cancelled')";
   const orders = db.prepare(`
     SELECT o.*, u.name AS affiliate_name, (SELECT SUM(qty) FROM order_items WHERE order_id = o.id) AS item_count
     FROM orders o LEFT JOIN users u ON u.id = o.affiliate_id
-    ${status ? 'WHERE o.status = ?' : ''} ORDER BY o.id DESC LIMIT 200`).all(...(status ? [status] : []));
+    ${where} ORDER BY o.id DESC LIMIT 200`).all(...(status ? [status] : []));
   res.render('admin/orders', { title: 'Orders', orders, status, statuses: ORDER_STATUSES });
 });
 
@@ -253,28 +260,33 @@ router.get('/orders/:id', (req, res) => {
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
   const commission = db.prepare(`SELECT c.*, u.name AS affiliate_name, u.email AS affiliate_email
                                   FROM commissions c JOIN users u ON u.id = c.affiliate_id WHERE c.order_id = ?`).get(order.id);
-  res.render('admin/order', { title: `Order #${order.id}`, order, items, commission, statuses: ORDER_STATUSES });
+  res.render('admin/order', { title: `Order #${order.id}`, order, items, commission, statuses: MANUAL_STATUSES, stripeReady: payments.enabled() });
 });
 
 router.post('/orders/:id/status', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   const status = req.body.status;
-  if (!order || !ORDER_STATUSES.includes(status)) return res.redirect('/admin/orders');
+  if (!order || !MANUAL_STATUSES.includes(status)) return res.redirect('/admin/orders');
   if (status !== order.status) {
-    tx(() => {
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
-      // Return stock when an order is cancelled, take it again if re-activated.
-      if (status === 'cancelled' && order.status !== 'cancelled') {
-        const st = db.prepare('UPDATE product_variants SET stock = stock + ? WHERE id = ?');
-        items.forEach((i) => i.variant_id && st.run(i.qty, i.variant_id));
-      } else if (order.status === 'cancelled' && status !== 'cancelled') {
-        const st = db.prepare('UPDATE product_variants SET stock = MAX(0, stock - ?) WHERE id = ?');
-        items.forEach((i) => i.variant_id && st.run(i.qty, i.variant_id));
-      }
-      db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, order.id);
-      syncCommission(order.id, status);
-    });
-    flash(req, 'success', `Order #${order.id} marked as ${status}.`);
+    // Stock and the affiliate commission follow the status (cancelling returns items to stock).
+    tx(() => payments.applyStatus(order, status));
+    flash(req, 'success', `Order #${order.id} is now ${status}.`);
+  }
+  res.redirect(`/admin/orders/${order.id}`);
+});
+
+router.post('/orders/:id/refund', async (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!order) return res.redirect('/admin/orders');
+  if (!order.stripe_payment_intent || !payments.enabled() || ['unpaid', 'refunded'].includes(order.status)) {
+    flash(req, 'error', 'This order has no Stripe payment to refund.');
+  } else {
+    try {
+      await payments.refundOrder(order);
+      flash(req, 'success', `Refunded ${(order.total_cents / 100).toFixed(2)} ${order.currency.toUpperCase()} for order #${order.id}. Items are back in stock and the affiliate commission was cancelled.`);
+    } catch (err) {
+      flash(req, 'error', `Stripe refused the refund: ${err.message}`);
+    }
   }
   res.redirect(`/admin/orders/${order.id}`);
 });
@@ -324,7 +336,7 @@ router.post('/withdrawals/:id', (req, res) => {
 /* ---------------- settings ---------------- */
 
 router.get('/settings', (req, res) => {
-  res.render('admin/settings', { title: 'Settings' });
+  res.render('admin/settings', { title: 'Settings', currencies: CURRENCIES, stripeReady: payments.enabled(), webhookReady: Boolean(process.env.STRIPE_WEBHOOK_SECRET) });
 });
 
 router.post('/settings', (req, res) => {
@@ -333,8 +345,10 @@ router.post('/settings', (req, res) => {
   const name = String(b.store_name || '').trim().slice(0, 60);
   if (name) setSetting('store_name', name);
   setSetting('tagline', String(b.tagline || '').trim().slice(0, 140));
-  const sym = String(b.currency_symbol || '').trim().slice(0, 4);
-  if (sym) setSetting('currency_symbol', sym);
+  if (CURRENCIES[b.currency]) {
+    setSetting('currency', b.currency);
+    setSetting('currency_symbol', CURRENCIES[b.currency]);
+  }
 
   const moneyFields = { shipping: 'shipping_cents', free_shipping_over: 'free_shipping_over_cents', min_withdrawal: 'min_withdrawal_cents' };
   for (const [field, key] of Object.entries(moneyFields)) {

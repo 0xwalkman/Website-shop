@@ -8,20 +8,20 @@
   <div>
     <div class="muted small">Available to withdraw</div>
     <div class="big-num"><%= usdc(bal.available) %></div>
-    <div class="muted small"><%= usdc(bal.pending) %> pending</div>
+    <div class="muted small"><%= usdc(bal.pending) %> on the way</div>
   </div>
-  <span class="btn small">Earn dashboard →</span>
+  <span class="btn small">My earnings →</span>
 </a>
 
 <h2>My orders</h2>
 <% if (!orders.length) { %>
-  <p class="muted">No orders yet. <a href="/shop">Start shopping</a></p>
+  <p class="muted">Nothing here yet. Your first favourite piece is <a href="/shop">a few taps away</a>.</p>
 <% } else { %>
   <div class="list">
     <% orders.forEach(o => { %>
       <a class="list-item" href="/order/<%= o.id %>">
         <div><strong>#<%= o.id %></strong><div class="muted small"><%= o.created_at.slice(0, 10) %></div></div>
-        <span class="status <%= o.status %>"><%= o.status %></span>
+        <span class="status <%= o.status %>"><%= o.status === 'unpaid' ? 'awaiting payment' : o.status %></span>
         <strong><%= money(o.total_cents) %></strong>
       </a>
     <% }) %>
