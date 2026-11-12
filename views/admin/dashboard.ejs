@@ -1,5 +1,6 @@
 <%- include('_head') %>
 <h1 class="page-title">Dashboard</h1>
+<% if (!user.totp_enabled) { %><div class="flash info">🔐 Protect the admin: <a href="/admin/security">turn on two-step login</a>. It takes one minute.</div><% } %>
 <div class="stats">
   <div class="stat accent"><div class="muted small">Revenue</div><div class="big-num"><%= money(s.revenue) %></div></div>
   <div class="stat"><div class="muted small">Paid orders</div><div class="big-num"><%= s.orders %></div></div>

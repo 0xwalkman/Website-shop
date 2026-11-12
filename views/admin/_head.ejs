@@ -14,7 +14,9 @@
     <div class="top-actions"><a class="chip" href="/" target="_blank">View store ↗</a></div>
   </div>
   <nav class="admin-nav wrap">
-    <% const tabs = [['/admin', 'Dashboard'], ['/admin/products', 'Products'], ['/admin/categories', 'Categories'], ['/admin/orders', 'Orders', adminPendingOrders], ['/admin/affiliates', 'Affiliates'], ['/admin/withdrawals', 'Withdrawals', adminPendingWithdrawals], ['/admin/settings', 'Settings']]; %>
+    <% const tabs = [['/admin', 'Dashboard'], ['/admin/orders', 'Orders', adminPendingOrders], ['/admin/products', 'Products'], ['/admin/categories', 'Categories'], ['/admin/stats', 'Stats'],
+         ...(isOwner ? [['/admin/discounts', 'Discounts'], ['/admin/affiliates', 'Affiliates'], ['/admin/withdrawals', 'Withdrawals', adminPendingWithdrawals], ['/admin/pages', 'Pages'], ['/admin/team', 'Team'], ['/admin/settings', 'Settings']] : []),
+         ['/admin/security', user.totp_enabled ? 'Security' : 'Security ⚠️']]; %>
     <% tabs.forEach(([href, label, count]) => { const active = href === '/admin' ? (path === '/admin' || path === '/admin/') : (path === href || path.startsWith(href + '/')); %>
       <a href="<%= href %>" class="<%= active ? 'active' : '' %>"><%= label %><% if (count) { %> <span class="badge inline"><%= count %></span><% } %></a>
     <% }) %>

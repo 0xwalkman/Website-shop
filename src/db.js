@@ -166,6 +166,91 @@ addColumn('orders', 'binance_trade_no', 'TEXT');
 addColumn('orders', 'binance_prepay_id', 'TEXT');
 addColumn('orders', 'binance_transaction_id', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_binance ON orders(binance_trade_no)');
+
+// v4: emails, password reset, tracking, photos, colors, sale prices, discounts, pages, analytics, staff, 2FA
+addColumn('orders', 'access_token', 'TEXT');           // lets customers open their order from an email link
+addColumn('orders', 'tracking_carrier', 'TEXT');
+addColumn('orders', 'tracking_number', 'TEXT');
+addColumn('orders', 'tracking_url', 'TEXT');
+addColumn('orders', 'discount_code', 'TEXT');
+addColumn('orders', 'discount_cents', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('orders', 'stripe_coupon_id', 'TEXT');
+addColumn('order_items', 'color', "TEXT NOT NULL DEFAULT ''");
+addColumn('product_variants', 'color', "TEXT NOT NULL DEFAULT ''");
+addColumn('product_variants', 'compare_at_cents', 'INTEGER');
+addColumn('users', 'staff_role', 'TEXT');              // NULL = customer, 'staff' = limited admin access
+addColumn('users', 'totp_secret', 'TEXT');
+addColumn('users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('users', 'totp_last_step', 'INTEGER NOT NULL DEFAULT 0');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS product_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_product_images ON product_images(product_id);
+
+CREATE TABLE IF NOT EXISTS emails (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  to_addr TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  html TEXT NOT NULL,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',   -- queued | sent | failed | logged
+  attempts INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  sent_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS discount_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  kind TEXT NOT NULL,                       -- percent | fixed
+  value INTEGER NOT NULL,                   -- percent (1-90) or cents
+  min_subtotal_cents INTEGER NOT NULL DEFAULT 0,
+  max_uses INTEGER,                         -- NULL = unlimited
+  uses INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,                          -- YYYY-MM-DD, inclusive
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pages (
+  slug TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS page_views (
+  day TEXT NOT NULL,
+  path TEXT NOT NULL,
+  referrer TEXT NOT NULL DEFAULT '',
+  views INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path, referrer)
+);
+CREATE TABLE IF NOT EXISTS daily_visitors (
+  day TEXT NOT NULL,
+  visitor_hash TEXT NOT NULL,
+  PRIMARY KEY (day, visitor_hash)
+);
+`);
+// Products created before galleries existed: copy their main image into the gallery.
+db.exec(`INSERT INTO product_images (product_id, path, sort_order)
+         SELECT id, image, 0 FROM products p WHERE image IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id)`);
+db.exec("UPDATE orders SET access_token = lower(hex(randomblob(16))) WHERE access_token IS NULL");
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_session_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_pi ON orders(stripe_payment_intent)');
 
@@ -193,6 +278,15 @@ const DEFAULT_SETTINGS = {
   commission_rate: '10',
   min_withdrawal_cents: '1000',
   commission_hold_note: "Earnings unlock as soon as your friend's order is delivered.",
+  // Used on the contact page, policy pages and emails. Fill these in from Admin -> Settings.
+  contact_email: '',
+  whatsapp_number: '',
+  business_name: '',
+  business_address: '',
+  returns_days: '14',
+  processing_days: '1-3 business days',
+  delivery_estimate: '7-20 business days',
+  admin_notify_email: '',
 };
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');

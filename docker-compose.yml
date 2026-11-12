@@ -1,0 +1,25 @@
+# Runs the store behind Caddy, which gets and renews the HTTPS certificate automatically.
+# 1. Point your domain's DNS (A record) at this server.  2. cp .env.example .env and fill it in.
+# 3. docker compose up -d
+services:
+  store:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - store_data:/app/data       # database, daily backups, email outbox
+      - store_uploads:/app/uploads # product and category photos
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [store]
+volumes:
+  store_data:
+  store_uploads:
+  caddy_data:

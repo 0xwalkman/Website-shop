@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { db, getSettings } = require('./db');
+const mailer = require('./mailer');
 
 const REF_COOKIE = 'ref';
 const REF_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days attribution window
@@ -76,6 +77,7 @@ function locals(req, res, next) {
   res.locals.usdc = (cents) => `${(Number(cents || 0) / 100).toFixed(2)} USDC`;
   res.locals.navCategories = db.prepare('SELECT id, name, slug FROM categories ORDER BY sort_order, name').all();
   res.locals.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  mailer.rememberBase(res.locals.baseUrl);
   next();
 }
 
@@ -89,8 +91,9 @@ function requireAuth(req, res, next) {
   res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
 
+// Admin area: owners (is_admin) and staff. Owner-only sections are checked again in routes/admin.js.
 function requireAdmin(req, res, next) {
-  if (req.user && req.user.is_admin) return next();
+  if (req.user && (req.user.is_admin || req.user.staff_role === 'staff')) return next();
   if (!req.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
   res.status(403).render('error', { title: 'Forbidden', message: 'You do not have access to this page.' });
 }

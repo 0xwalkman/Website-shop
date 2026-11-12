@@ -1,21 +1,47 @@
 <%- include('partials/head') %>
 <div class="product">
   <div class="product-media">
-    <% if (product.image) { %><img src="<%= product.image %>" alt="<%= product.name %>"><% } else { %><div class="ph big"><%= product.name.slice(0,1) %></div><% } %>
+    <% if (images.length) { %>
+      <div class="gallery" id="gallery">
+        <% images.forEach((src, i) => { %><img src="<%= src %>" alt="<%= product.name %> photo <%= i + 1 %>" <%= i ? 'loading="lazy"' : '' %>><% }) %>
+      </div>
+      <% if (images.length > 1) { %>
+        <div class="thumbs">
+          <% images.forEach((src, i) => { %><button type="button" class="thumb-btn <%= i === 0 ? 'active' : '' %>" data-slide="<%= i %>" aria-label="Show photo <%= i + 1 %>"><img src="<%= src %>" alt="" loading="lazy"></button><% }) %>
+        </div>
+      <% } %>
+    <% } else { %><div class="ph big"><%= product.name.slice(0,1) %></div><% } %>
   </div>
   <div class="product-info">
     <% if (product.category_name) { %><a class="muted small" href="/shop?category=<%= product.category_slug %>"><%= product.category_name %></a><% } %>
     <h1><%= product.name %></h1>
-    <% const inStock = variants.filter(v => v.stock > 0); const first = inStock[0] || variants[0]; %>
-    <div class="price big" id="price"><%= first ? money(first.price_cents) : '' %></div>
+    <% const inStock = variants.filter(v => v.stock > 0); const first = inStock[0] || variants[0];
+       const onSale = first && first.compare_at_cents > first.price_cents; %>
+    <div class="price big">
+      <span id="price" class="<%= onSale ? 'on-sale' : '' %>"><%= first ? money(first.price_cents) : '' %></span>
+      <s id="compare" class="was" <%= onSale ? '' : 'hidden' %>><%= onSale ? money(first.compare_at_cents) : '' %></s>
+      <span id="save" class="save-badge" <%= onSale ? '' : 'hidden' %>><%= onSale ? `Save ${Math.round((1 - first.price_cents / first.compare_at_cents) * 100)}%` : '' %></span>
+    </div>
 
     <form method="post" action="/cart/add" id="add-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (colors.length) { %>
+        <div class="label-row"><strong>Color: <span id="color-name"><%= first.color %></span></strong></div>
+        <div class="colors" id="colors">
+          <% colors.forEach(c => { const has = variants.some(v => v.color === c && v.stock > 0); %>
+            <button type="button" class="color-chip <%= c === first.color ? 'active' : '' %> <%= has ? '' : 'soldout' %>" data-color="<%= c %>" style="--sw: <%= c.toLowerCase().replace(/[^a-z]/g, '') %>">
+              <i></i><%= c %>
+            </button>
+          <% }) %>
+        </div>
+      <% } %>
       <div class="label-row"><strong>Choose your size</strong><span class="muted small" id="stock-note"></span></div>
       <div class="sizes">
         <% variants.forEach(v => { %>
-          <label class="size <%= v.stock <= 0 ? 'disabled' : '' %>">
+          <label class="size <%= v.stock <= 0 ? 'disabled' : '' %>" data-color="<%= v.color %>" <%= colors.length && v.color !== first.color ? 'hidden' : '' %>>
             <input type="radio" name="variant_id" value="<%= v.id %>" data-price="<%= money(v.price_cents) %>" data-stock="<%= v.stock %>"
+              data-compare="<%= v.compare_at_cents > v.price_cents ? money(v.compare_at_cents) : '' %>"
+              data-save="<%= v.compare_at_cents > v.price_cents ? Math.round((1 - v.price_cents / v.compare_at_cents) * 100) : '' %>"
               <%= v.stock <= 0 ? 'disabled' : '' %> <%= first && v.id === first.id && v.stock > 0 ? 'checked' : '' %> required>
             <span><%= v.size %></span>
           </label>
@@ -35,6 +61,7 @@
           <button class="btn" type="submit" name="buy_now" value="1">Buy now</button>
         </div>
         <ul class="mini-perks">
+          <li>↩️ <a href="/page/returns"><%= settings.returns_days %>-day returns</a></li>
           <% if (freeShipping) { %><li>🌍 Free shipping worldwide</li><% } %>
           <li>🔒 <%= payLabel %></li>
         </ul>

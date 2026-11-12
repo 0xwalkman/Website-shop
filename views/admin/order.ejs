@@ -8,10 +8,11 @@
   <div class="card">
     <h2>Items</h2>
     <% items.forEach(i => { %>
-      <div class="row"><span><%= i.qty %> × <%= i.product_name %> <span class="muted">(<%= i.size %>)</span></span><span><%= money(i.price_cents * i.qty) %></span></div>
+      <div class="row"><span><%= i.qty %> × <%= i.product_name %> <span class="muted">(<%= [i.color, i.size].filter(Boolean).join(" / ") %>)</span></span><span><%= money(i.price_cents * i.qty) %></span></div>
     <% }) %>
     <hr>
     <div class="row"><span>Subtotal</span><span><%= money(order.subtotal_cents) %></span></div>
+    <% if (order.discount_cents) { %><div class="row"><span>Discount (<%= order.discount_code %>)</span><span>−<%= money(order.discount_cents) %></span></div><% } %>
     <div class="row"><span>Shipping</span><span><%= money(order.shipping_cents) %></span></div>
     <div class="row total"><span>Total</span><span><%= money(order.total_cents) %></span></div>
   </div>
@@ -35,6 +36,19 @@
           <label class="size"><input type="radio" name="status" value="<%= st %>" <%= order.status === st ? 'checked' : '' %>><span><%= st %></span></label>
         <% }) %>
       </div>
+      <fieldset class="tracking-box">
+        <legend>Tracking <span class="muted small">(needed when marking shipped)</span></legend>
+        <label>Carrier
+          <select name="tracking_carrier">
+            <% carriers.forEach(c => { %><option value="<%= c %>" <%= (order.tracking_carrier === c || (!carriers.includes(order.tracking_carrier) && c === 'Other' && order.tracking_carrier)) ? 'selected' : '' %>><%= c === 'Other' ? 'Other carrier' : c %></option><% }) %>
+          </select>
+        </label>
+        <label>Other carrier name (optional)<input name="tracking_carrier_other" value="<%= order.tracking_carrier && !carriers.includes(order.tracking_carrier) ? order.tracking_carrier : '' %>" placeholder="e.g. Poste Maroc"></label>
+        <label>Tracking number<input name="tracking_number" value="<%= order.tracking_number || '' %>" autocomplete="off" spellcheck="false"></label>
+        <label>Tracking link (optional)<input name="tracking_url" value="" placeholder="Leave empty to build it automatically"></label>
+        <label class="check"><input type="checkbox" name="no_tracking" value="1"> Ship without tracking</label>
+        <% if (order.tracking_url) { %><p class="small">Current link: <a href="<%= order.tracking_url %>" target="_blank" rel="noopener">open tracking ↗</a></p><% } %>
+      </fieldset>
       <button class="btn" type="submit">Update</button>
       <p class="muted small">Cancelling returns items to stock but does <strong>not</strong> refund the customer<%= order.payment_method === 'stripe' ? ' (use the refund button for that)' : '' %>. The affiliate commission becomes withdrawable when the order is <strong>delivered</strong>.</p>
     </form>

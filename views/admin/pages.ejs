@@ -1,0 +1,12 @@
+<%- include('_head') %>
+<h1 class="page-title">Pages</h1>
+<p class="muted">Your store's policy pages, linked in the footer. They start with template text that fills in your details from <a href="/admin/settings">Settings</a>. <strong>Read each one and adjust it to how you actually work.</strong> They are a starting point, not legal advice.</p>
+<div class="list">
+  <% pages.forEach(p => { %>
+    <a class="list-item" href="/admin/pages/<%= p.slug %>">
+      <div><strong><%= p.title %></strong><div class="muted small">/<%= p.slug === 'contact' ? 'contact' : 'page/' + p.slug %></div></div>
+      <span class="status <%= p.edited ? 'delivered' : 'pending' %>"><%= p.edited ? 'edited' : 'template' %></span>
+    </a>
+  <% }) %>
+</div>
+<%- include('_foot') %>

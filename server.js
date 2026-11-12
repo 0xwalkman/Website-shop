@@ -33,6 +33,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/healthz', (req, res) => { db.prepare('SELECT 1').get(); res.json({ ok: true }); });
+
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
 // Stripe webhook: needs the raw request body to verify the signature, so it is registered
@@ -95,12 +97,15 @@ const upload = multer({
     cb(ok ? null : new Error('Only JPG, PNG, WEBP or GIF images are allowed.'), ok);
   },
 });
-app.use('/admin', mw.requireAdmin, upload.single('image'));
+app.use('/admin', mw.requireAdmin, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 12 }]));
 
 app.use(mw.csrf);
 
+app.use(require('./src/analytics').track);
+app.use(require('./src/routes/seo'));
 app.use(require('./src/routes/auth'));
 app.use(require('./src/routes/shop'));
+app.use(require('./src/routes/pages'));
 app.use('/account', require('./src/routes/account'));
 app.use('/admin', require('./src/routes/admin'));
 
@@ -116,6 +121,8 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Something went wrong', message: 'An unexpected error occurred. Please try again.' });
 });
+
+if (process.env.BACKUPS !== 'off') require('./src/backup').schedule();
 
 setInterval(() => {
   payments.sweepStale().catch((e) => console.error(e));

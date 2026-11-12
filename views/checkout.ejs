@@ -51,16 +51,31 @@
         <% } %>
       </div>
     <% } %>
+    <p class="muted small customs-note">🌍 Shipping outside our country? Your local customs may charge import duties or taxes on delivery. These aren't included in our prices. <a href="/page/shipping" target="_blank">Learn more</a></p>
     <button class="btn block" type="submit" <%= methods.length ? '' : 'disabled' %>>Continue to payment · <%= money(cart.total) %></button>
+    <p class="muted small center">By placing your order you agree to our <a href="/page/terms" target="_blank">Terms</a> and <a href="/page/returns" target="_blank">Returns policy</a>.</p>
     <% if (!user) { %><p class="muted small center">Already shop with us? <a href="/login?next=/checkout">Log in</a> to keep all your orders in one place.</p><% } %>
   </form>
   <div class="summary card">
     <h2>Your order</h2>
     <% cart.items.forEach(i => { %>
-      <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= i.size %>)</span><span><%= money(i.line_cents) %></span></div>
+      <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= [i.color, i.size].filter(Boolean).join(" / ") %>)</span><span><%= money(i.line_cents) %></span></div>
     <% }) %>
     <hr>
     <div class="row"><span>Subtotal</span><span><%= money(cart.subtotal) %></span></div>
+      <% if (cart.discount) { %>
+        <div class="row discount-row"><span>🏷 <%= cart.discount.code %> <small class="muted">(<%= cart.discount.label %>)</small></span><span>−<%= money(cart.discountCents) %></span></div>
+        <form method="post" action="/cart/discount" class="link-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="checkout">
+          <button class="link-btn" name="remove" value="1">Remove code</button>
+        </form>
+      <% } else { %>
+        <form method="post" action="/cart/discount" class="discount-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="checkout">
+          <input name="code" placeholder="Discount code" aria-label="Discount code" autocomplete="off" autocapitalize="characters">
+          <button class="btn small outline" type="submit">Apply</button>
+        </form>
+      <% } %>
     <div class="row"><span>Shipping</span><span><%= cart.shipping ? money(cart.shipping) : 'Free, worldwide' %></span></div>
     <div class="row total"><span>Total</span><span><%= money(cart.total) %></span></div>
   </div>

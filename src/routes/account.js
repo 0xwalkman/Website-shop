@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { db, tx, getSettings } = require('../db');
 const { requireAuth, flash, parseMoney } = require('../middleware');
 const { NETWORKS, validateWallet, balances, stats } = require('../affiliate');
+const { signOutEverywhere } = require('./auth');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -25,7 +26,8 @@ router.post('/password', (req, res) => {
     flash(req, 'error', 'New password must be at least 8 characters.');
   } else {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(String(password), 10), req.user.id);
-    flash(req, 'success', 'Password updated.');
+    signOutEverywhere(req.user.id, req.sessionID); // other devices are signed out
+    flash(req, 'success', 'Password updated. Any other devices have been signed out.');
   }
   res.redirect('/account');
 });

@@ -17,6 +17,15 @@
     <p class="muted small">Set <code>BINANCE_PAY_API_KEY</code> and <code>BINANCE_PAY_SECRET_KEY</code> on the server and restart it. Binance notifies <code><%= baseUrl %>/binance/webhook</code> automatically (it must be reachable over the internet). See the README for details.</p>
   <% } %>
 </div>
+<div class="card">
+  <h2>Email</h2>
+  <div class="row"><span>Email sending (SMTP)</span><span class="status <%= smtpReady ? 'delivered' : 'pending' %>"><%= smtpReady ? 'connected' : 'not set up' %></span></div>
+  <% if (!smtpReady) { %><p class="muted small">Emails (order confirmations, shipping updates, password resets) are being saved to <code>data/outbox</code> instead of sent. Add your email provider's SMTP details on the server to send them for real. See the README.</p><% } %>
+  <p class="muted small">Last 7 days: <% if (!emailStats.length) { %>no emails yet<% } else { %><%= emailStats.map(e => `${e.n} ${e.status}`).join(' · ') %><% } %></p>
+  <% if (failedEmails.length) { %>
+    <div class="flash error small">Some emails could not be sent:<br><% failedEmails.forEach(e => { %><%= e.created_at %>: <%= e.subject %> → <%= e.to_addr %> (<%= e.error %>)<br><% }) %></div>
+  <% } %>
+</div>
 <form method="post" action="/admin/settings" class="form">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <div class="two-col">
@@ -32,6 +41,22 @@
       <p class="muted small">Affiliates are paid 1 USDC per 1 unit of this currency, so USD is recommended.</p>
       <label>Shipping fee per order (0 = free shipping)<input name="shipping" inputmode="decimal" value="<%= (settings.shipping_cents / 100).toFixed(2) %>"></label>
       <label>Free shipping over (0 = not used)<input name="free_shipping_over" inputmode="decimal" value="<%= (settings.free_shipping_over_cents / 100).toFixed(2) %>"></label>
+    </div>
+    <div class="card">
+      <h2>Contact & business details</h2>
+      <p class="muted small">Shown on the contact page, in policy pages and in emails.</p>
+      <label>Customer service email<input name="contact_email" type="email" value="<%= settings.contact_email %>" placeholder="hello@yourdomain.com"></label>
+      <label>WhatsApp number (shows a chat button)<input name="whatsapp_number" value="<%= settings.whatsapp_number %>" placeholder="+212 600 000000"></label>
+      <label>Send new-order alerts to (optional)<input name="admin_notify_email" type="email" value="<%= settings.admin_notify_email %>" placeholder="Defaults to the customer service email"></label>
+      <label>Business / legal name (optional)<input name="business_name" value="<%= settings.business_name %>"></label>
+      <label>Business address (optional)<input name="business_address" value="<%= settings.business_address %>"></label>
+    </div>
+    <div class="card">
+      <h2>Shipping & returns promises</h2>
+      <p class="muted small">Used in the Shipping and Returns pages and in emails. Make sure they match what you can really deliver.</p>
+      <label>Order processing time<input name="processing_days" value="<%= settings.processing_days %>"></label>
+      <label>Delivery time after shipping<input name="delivery_estimate" value="<%= settings.delivery_estimate %>"></label>
+      <label>Return window (days)<input name="returns_days" type="number" min="0" max="365" value="<%= settings.returns_days %>"></label>
     </div>
     <div class="card">
       <h2>Affiliate program</h2>

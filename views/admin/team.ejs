@@ -1,0 +1,35 @@
+<%- include('_head') %>
+<h1 class="page-title">Team</h1>
+<div class="two-col">
+  <div class="card">
+    <h2>People with admin access</h2>
+    <div class="list">
+      <% team.forEach(t => { %>
+        <div class="list-item">
+          <div>
+            <strong><%= t.name %></strong> <span class="status <%= t.is_admin ? 'paid' : 'pending' %>"><%= t.is_admin ? 'owner' : 'staff' %></span>
+            <div class="muted small"><%= t.email %> · 2-step login <%= t.totp_enabled ? 'on ✅' : 'off' %></div>
+          </div>
+          <% if (t.id !== user.id) { %>
+            <form method="post" action="/admin/team/<%= t.id %>/remove" data-confirm="Remove admin access for <%= t.email %>?"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small danger">Remove</button></form>
+          <% } else { %><span class="muted small">you</span><% } %>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+  <form method="post" action="/admin/team" class="card form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <h2>Add someone</h2>
+    <label>Email<input type="email" name="email" required></label>
+    <label>Name (if they don't have an account yet)<input name="name"></label>
+    <label>Access
+      <select name="role">
+        <option value="staff">Staff: products, categories, orders, stats</option>
+        <option value="owner">Owner: everything, including money and settings</option>
+      </select>
+    </label>
+    <p class="muted small">They'll get an email. New people choose their own password from the link.</p>
+    <button class="btn" type="submit">Give access</button>
+  </form>
+</div>
+<%- include('_foot') %>

@@ -38,10 +38,16 @@
   // Product page: update price + stock note when a size is selected
   const price = document.getElementById('price');
   const note = document.getElementById('stock-note');
+  const compareEl = document.getElementById('compare');
+  const saveEl = document.getElementById('save');
   function updateSize() {
     const sel = document.querySelector('input[name="variant_id"]:checked');
     if (!sel || !price) return;
     price.textContent = sel.dataset.price;
+    const onSale = Boolean(sel.dataset.compare);
+    price.classList.toggle('on-sale', onSale);
+    if (compareEl) { compareEl.hidden = !onSale; compareEl.textContent = sel.dataset.compare; }
+    if (saveEl) { saveEl.hidden = !onSale; saveEl.textContent = onSale ? `Save ${sel.dataset.save}%` : ''; }
     const stock = parseInt(sel.dataset.stock, 10);
     if (note) note.textContent = stock <= 5 ? `Only ${stock} left` : 'In stock';
     const qty = document.getElementById('qty');
@@ -65,10 +71,73 @@
       if (variants.querySelectorAll('.variant-row').length <= 1) return alert('A product needs at least one size.');
       rm.closest('.variant-row').remove();
     });
+    // "+ Add a color": copies every size of the first color into new rows for a new color.
+    const addColor = document.getElementById('add-color');
+    if (addColor) addColor.addEventListener('click', () => {
+      const name = prompt('New color name (e.g. Navy):');
+      if (!name) return;
+      const rows = [...variants.querySelectorAll('.variant-row')];
+      const firstColor = rows.length ? rows[0].querySelector('input[name="v_color[]"]').value : '';
+      const base = rows.filter((r) => r.querySelector('input[name="v_color[]"]').value === firstColor);
+      (base.length ? base : [null]).forEach((src) => {
+        variants.appendChild(tpl.content.cloneNode(true));
+        const row = variants.lastElementChild;
+        row.querySelector('input[name="v_color[]"]').value = name;
+        if (src) for (const f of ['v_size[]', 'v_price[]', 'v_compare[]']) row.querySelector(`input[name="${f}"]`).value = src.querySelector(`input[name="${f}"]`).value;
+      });
+    });
     document.getElementById('fill-price').addEventListener('click', () => {
       const first = variants.querySelector('input[name="v_price[]"]');
       const val = prompt('Price for all sizes:', first ? first.value : '');
       if (val !== null) variants.querySelectorAll('input[name="v_price[]"]').forEach((i) => (i.value = val));
     });
   }
+})();
+
+// Cookie notice (informational: the store only uses essential cookies)
+(function () {
+  const note = document.getElementById('cookie-note');
+  if (!note) return;
+  try { if (localStorage.getItem('cookie-ok')) return; } catch { return; }
+  note.hidden = false;
+  document.getElementById('cookie-ok').addEventListener('click', () => {
+    try { localStorage.setItem('cookie-ok', '1'); } catch {}
+    note.hidden = true;
+  });
+})();
+
+// Product page: color picker shows the sizes for the chosen color
+(function () {
+  const colors = document.getElementById('colors');
+  if (!colors) return;
+  colors.addEventListener('click', (e) => {
+    const chip = e.target.closest('.color-chip');
+    if (!chip) return;
+    const color = chip.dataset.color;
+    colors.querySelectorAll('.color-chip').forEach((c) => c.classList.toggle('active', c === chip));
+    document.getElementById('color-name').textContent = color;
+    let firstAvailable = null;
+    document.querySelectorAll('.sizes .size').forEach((label) => {
+      const match = label.dataset.color === color;
+      label.hidden = !match;
+      const input = label.querySelector('input');
+      if (!match) input.checked = false;
+      else if (!firstAvailable && !input.disabled) firstAvailable = input;
+    });
+    if (firstAvailable) { firstAvailable.checked = true; firstAvailable.dispatchEvent(new Event('change')); }
+  });
+})();
+
+// Product page: swipeable photo gallery with thumbnails
+(function () {
+  const gallery = document.getElementById('gallery');
+  if (!gallery) return;
+  const thumbs = document.querySelectorAll('.thumb-btn');
+  thumbs.forEach((t) => t.addEventListener('click', () => {
+    gallery.scrollTo({ left: gallery.clientWidth * Number(t.dataset.slide), behavior: 'smooth' });
+  }));
+  gallery.addEventListener('scroll', () => {
+    const i = Math.round(gallery.scrollLeft / gallery.clientWidth);
+    thumbs.forEach((t, n) => t.classList.toggle('active', n === i));
+  }, { passive: true });
 })();

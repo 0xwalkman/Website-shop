@@ -1,0 +1,62 @@
+<%- include('_head') %>
+<h1 class="page-title">Statistics</h1>
+<p class="muted page-sub">Last 30 days. Counted without cookies or personal data; bots are ignored.</p>
+
+<div class="stats">
+  <div class="stat"><div class="muted small">Visitors</div><div class="big-num"><%= r.totals.visitors.toLocaleString('en-US') %></div></div>
+  <div class="stat"><div class="muted small">Page views</div><div class="big-num"><%= r.totals.views.toLocaleString('en-US') %></div></div>
+  <div class="stat"><div class="muted small">Paid orders</div><div class="big-num"><%= r.totals.orders %></div></div>
+  <div class="stat"><div class="muted small">Conversion</div><div class="big-num"><%= r.totals.conversion.toFixed(1) %>%</div></div>
+  <div class="stat accent"><div class="muted small">Revenue</div><div class="big-num"><%= money(r.totals.cents) %></div></div>
+</div>
+
+<% const chart = (key, title, fmt) => { const max = Math.max(1, ...r.daily.map(d => d[key])); %>
+  <figure class="card vchart">
+    <figcaption class="vchart-title"><strong><%= title %></strong><span class="muted small">peak <%= fmt(max) %></span></figcaption>
+    <div class="vbars" role="img" aria-label="<%= title %> per day, last 30 days. Exact values in the table below.">
+      <% r.daily.forEach((d, i) => { %>
+        <div class="vbar-col" tabindex="0" data-tip="<%= fmt(d[key]) %> · <%= new Date(d.day + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) %>">
+          <div class="vbar" style="height: <%= d[key] ? Math.max(2, Math.round(d[key] / max * 100)) : 0 %>%"></div>
+        </div>
+      <% }) %>
+    </div>
+    <div class="vaxis">
+      <% r.daily.forEach((d, i) => { %><span><%= (i % 7 === 0 && i < r.daily.length - 4) || i === r.daily.length - 1 ? d.day.slice(5).replace('-', '/') : '' %></span><% }) %>
+    </div>
+  </figure>
+<% } %>
+<div class="two-col">
+  <% chart('visitors', 'Visitors per day', v => v.toLocaleString('en-US')) %>
+  <% chart('orders', 'Paid orders per day', v => String(v)) %>
+</div>
+<details class="card">
+  <summary>Show daily numbers as a table</summary>
+  <div class="table-wrap flat"><table>
+    <thead><tr><th>Day</th><th>Visitors</th><th>Page views</th><th>Paid orders</th><th>Revenue</th></tr></thead>
+    <tbody><% r.daily.slice().reverse().forEach(d => { %><tr><td><%= d.day %></td><td><%= d.visitors %></td><td><%= d.views %></td><td><%= d.orders %></td><td><%= money(d.cents) %></td></tr><% }) %></tbody>
+  </table></div>
+</details>
+
+<div class="two-col">
+  <div class="card">
+    <h2>Most viewed products</h2>
+    <% if (!r.topProducts.length) { %><p class="muted">No product views yet.</p><% } %>
+    <% r.topProducts.forEach(p => { %><div class="row"><a href="/p/<%= p.slug %>" target="_blank"><%= p.name %></a><strong><%= p.views %></strong></div><% }) %>
+  </div>
+  <div class="card">
+    <h2>Where visitors come from</h2>
+    <% if (!r.referrers.length) { %><p class="muted">No outside websites have sent visitors yet. Direct visits and app links (WhatsApp, Instagram app) don't always share where they came from.</p><% } %>
+    <% r.referrers.forEach(x => { %><div class="row"><span><%= x.referrer %></span><strong><%= x.views %></strong></div><% }) %>
+  </div>
+  <div class="card">
+    <h2>Top pages</h2>
+    <% if (!r.topPages.length) { %><p class="muted">No page views yet.</p><% } %>
+    <% r.topPages.forEach(x => { %><div class="row"><span class="mono small"><%= x.path %></span><strong><%= x.views %></strong></div><% }) %>
+  </div>
+  <div class="card">
+    <h2>Top affiliates</h2>
+    <% if (!r.affiliates.length) { %><p class="muted">No affiliate activity yet.</p><% } %>
+    <% r.affiliates.forEach(a => { %><div class="row"><span><%= a.name %> <code><%= a.referral_code %></code></span><span><%= a.clicks %> clicks · <strong><%= a.orders %> orders</strong></span></div><% }) %>
+  </div>
+</div>
+<%- include('_foot') %>

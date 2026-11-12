@@ -1,6 +1,7 @@
 const Stripe = require('stripe');
 const { db, tx } = require('./db');
 const { ensureCommission, syncCommission } = require('./affiliate');
+const notify = require('./notify');
 
 let client = null;
 
@@ -45,8 +46,16 @@ function applyStatus(order, status) {
   if (isReleased && !wasReleased) restock(order.id, +1);
   if (!isReleased && wasReleased) restock(order.id, -1);
   db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, order.id);
-  if (['paid', 'shipped', 'delivered'].includes(status)) ensureCommission(order.id);
+  if (['paid', 'shipped', 'delivered'].includes(status)) {
+    ensureCommission(order.id);
+    if (!order.paid_at) {
+      // First time this order counts as paid: record it and use up the discount code.
+      db.prepare("UPDATE orders SET paid_at = COALESCE(paid_at, datetime('now')) WHERE id = ?").run(order.id);
+      if (order.discount_code) db.prepare('UPDATE discount_codes SET uses = uses + 1 WHERE code = ?').run(order.discount_code);
+    }
+  }
   syncCommission(order.id, status);
+  notify.orderStatus(order.id, status); // queued inside the transaction, sent after it commits
 }
 
 async function createCheckoutSession({ order, items, baseUrl }) {
@@ -59,7 +68,7 @@ async function createCheckoutSession({ order, items, baseUrl }) {
       currency,
       unit_amount: i.price_cents,
       product_data: {
-        name: `${i.product_name} (Size ${i.size})`,
+        name: `${i.product_name} (${[i.color, `Size ${i.size}`].filter(Boolean).join(', ')})`,
         ...(canShowImages && i.image ? { images: [`${baseUrl}${i.image}`] } : {}),
       },
     },
@@ -67,9 +76,20 @@ async function createCheckoutSession({ order, items, baseUrl }) {
   if (order.shipping_cents > 0) {
     line_items.push({ quantity: 1, price_data: { currency, unit_amount: order.shipping_cents, product_data: { name: 'Shipping' } } });
   }
+  // A discount code becomes a single-use Stripe coupon for the exact amount, so Stripe's total matches ours.
+  let discounts;
+  if (order.discount_cents > 0) {
+    const coupon = await s.coupons.create({
+      amount_off: order.discount_cents, currency, duration: 'once', max_redemptions: 1,
+      name: order.discount_code ? `Code ${order.discount_code}` : 'Discount',
+    }, { idempotencyKey: `order-${order.id}-coupon` });
+    db.prepare('UPDATE orders SET stripe_coupon_id = ? WHERE id = ?').run(coupon.id, order.id);
+    discounts = [{ coupon: coupon.id }];
+  }
   return s.checkout.sessions.create({
     mode: 'payment',
     line_items,
+    ...(discounts ? { discounts } : {}),
     customer_email: order.email,
     client_reference_id: String(order.id),
     metadata: { order_id: String(order.id) },

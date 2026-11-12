@@ -14,6 +14,8 @@
   <meta property="og:description" content="<%= pageDesc %>">
   <meta property="og:type" content="<%= m.image ? 'product' : 'website' %>">
   <% if (m.image) { %><meta property="og:image" content="<%= m.image %>"><meta name="twitter:card" content="summary_large_image"><% } %>
+  <% if (m.canonical) { %><link rel="canonical" href="<%= m.canonical %>"><meta property="og:url" content="<%= m.canonical %>"><% } %>
+  <% if (m.jsonld) { %><script type="application/ld+json"><%- JSON.stringify(m.jsonld).replace(/</g, '\\u003c') %></script><% } %>
   <link rel="stylesheet" href="/public/css/style.css">
 </head>
 <body>

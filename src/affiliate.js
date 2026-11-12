@@ -40,9 +40,10 @@ function commissionStatusFor(orderStatus) {
 function ensureCommission(orderId) {
   const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   if (!o || !o.affiliate_id || !(o.commission_rate > 0)) return;
-  const amount = Math.floor(o.subtotal_cents * o.commission_rate / 100);
+  const base = o.subtotal_cents - (o.discount_cents || 0); // products only: after discount, without shipping
+  const amount = Math.floor(base * o.commission_rate / 100);
   db.prepare(`INSERT OR IGNORE INTO commissions (affiliate_id, order_id, order_amount_cents, rate, amount_cents, status)
-              VALUES (?, ?, ?, ?, ?, 'pending')`).run(o.affiliate_id, o.id, o.subtotal_cents, o.commission_rate, amount);
+              VALUES (?, ?, ?, ?, ?, 'pending')`).run(o.affiliate_id, o.id, base, o.commission_rate, amount);
 }
 
 function syncCommission(orderId, orderStatus) {

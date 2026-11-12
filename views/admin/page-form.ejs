@@ -1,0 +1,20 @@
+<%- include('_head') %>
+<div class="section-head">
+  <h1 class="page-title"><%= page.title %></h1>
+  <a class="chip" href="<%= page.slug === 'contact' ? '/contact' : '/page/' + page.slug %>" target="_blank">View ↗</a>
+</div>
+<form method="post" action="/admin/pages/<%= page.slug %>" class="form card">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <label>Title<input name="title" value="<%= page.rawTitle %>" maxlength="120" required></label>
+  <label>Text<textarea name="body" rows="22" class="mono-area"><%= page.raw %></textarea></label>
+  <details class="muted small">
+    <summary>Formatting help</summary>
+    <p><code>## Heading</code> · <code>- bullet</code> · <code>1. numbered</code> · <code>**bold**</code> · <code>[link text](/contact)</code></p>
+    <p>Placeholders filled from Settings: <code>{{store_name}}</code> <code>{{contact_line}}</code> <code>{{contact_email}}</code> <code>{{returns_days}}</code> <code>{{processing_days}}</code> <code>{{delivery_estimate}}</code> <code>{{commission_rate}}</code> <code>{{min_withdrawal}}</code> <code>{{business_line}}</code></p>
+  </details>
+  <div class="actions">
+    <button class="btn" type="submit">Save page</button>
+    <% if (page.edited) { %><button class="btn outline" type="submit" name="reset" value="1" formnovalidate data-confirm-btn="Throw away your edits and go back to the starter text?">Reset to template</button><% } %>
+  </div>
+</form>
+<%- include('_foot') %>

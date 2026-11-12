@@ -1,16 +1,23 @@
+const crypto = require('node:crypto');
 const express = require('express');
 const { db, tx, getSettings } = require('../db');
 const { flash, currentAffiliate } = require('../middleware');
 const payments = require('../payments');
 const binance = require('../binance');
 const { COUNTRIES, countryName } = require('../countries');
+const discounts = require('../discounts');
 
 const router = express.Router();
+
+// "Black / M", or just "M" for single-color items
+const variantLabel = (v) => [v.color, v.size].filter(Boolean).join(' / ');
 
 const PRODUCT_LIST_SQL = `
   SELECT p.*, c.name AS category_name, c.slug AS category_slug,
          MIN(v.price_cents) AS min_price, MAX(v.price_cents) AS max_price,
-         COALESCE(SUM(v.stock), 0) AS total_stock
+         COALESCE(SUM(v.stock), 0) AS total_stock,
+         MAX(CASE WHEN v.compare_at_cents > v.price_cents THEN 1 ELSE 0 END) AS on_sale,
+         COUNT(DISTINCT NULLIF(v.color, '')) AS color_count
   FROM products p
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN product_variants v ON v.product_id = p.id
@@ -28,6 +35,7 @@ router.get('/shop', (req, res) => {
   const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
   const catSlug = typeof req.query.category === 'string' ? req.query.category : '';
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'new';
+  const sale = req.query.sale === '1';
   const where = [];
   const params = [];
   let category = null;
@@ -42,9 +50,10 @@ router.get('/shop', (req, res) => {
     name: 'p.name COLLATE NOCASE ASC',
   }[sort] || 'p.created_at DESC, p.id DESC';
   const sql = `${PRODUCT_LIST_SQL} ${where.length ? 'AND ' + where.join(' AND ') : ''}
-    GROUP BY p.id HAVING COUNT(v.id) > 0 ORDER BY ${order}`;
+    GROUP BY p.id HAVING COUNT(v.id) > 0 ${sale ? 'AND on_sale = 1' : ''} ORDER BY ${order}`;
   const products = db.prepare(sql).all(...params);
-  res.render('shop', { title: category ? category.name : 'Shop', products, category, q, sort });
+  const anySale = Boolean(db.prepare('SELECT 1 FROM product_variants v JOIN products p ON p.id = v.product_id WHERE p.is_active = 1 AND v.compare_at_cents > v.price_cents').get());
+  res.render('shop', { title: sale ? 'On sale' : (category ? category.name : 'Shop'), products, category, q, sort, sale, anySale });
 });
 
 router.get('/p/:slug', (req, res) => {
@@ -54,13 +63,38 @@ router.get('/p/:slug', (req, res) => {
     WHERE p.slug = ? AND p.is_active = 1`).get(req.params.slug);
   if (!product) return res.status(404).render('error', { title: 'This piece is gone', message: "It sold out or is no longer available. Plenty more where it came from, though." });
   const variants = db.prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY sort_order, id').all(product.id);
+  const images = db.prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order, id').all(product.id).map((i) => i.path);
+  if (!images.length && product.image) images.push(product.image);
+  const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))];
   const related = db.prepare(`${PRODUCT_LIST_SQL} AND p.category_id IS ? AND p.id != ? GROUP BY p.id HAVING COUNT(v.id) > 0 ORDER BY RANDOM() LIMIT 4`)
     .all(product.category_id, product.id);
+  const base = res.locals.baseUrl;
+  const settings = res.locals.settings;
+  const prices = variants.map((v) => v.price_cents);
   const meta = {
     description: product.description.slice(0, 160),
-    image: product.image ? `${res.locals.baseUrl}${product.image}` : null,
+    image: product.image ? `${base}${product.image}` : null,
+    canonical: `${base}/p/${product.slug}`, // affiliate links (?ref=...) all point Google at the same page
+    jsonld: prices.length ? {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description: product.description,
+      image: images.map((i) => `${base}${i}`),
+      brand: { '@type': 'Brand', name: settings.store_name },
+      ...(product.category_name ? { category: product.category_name } : {}),
+      offers: {
+        '@type': 'AggregateOffer',
+        priceCurrency: settings.currency.toUpperCase(),
+        lowPrice: (Math.min(...prices) / 100).toFixed(2),
+        highPrice: (Math.max(...prices) / 100).toFixed(2),
+        offerCount: variants.length,
+        availability: variants.some((v) => v.stock > 0) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: `${base}/p/${product.slug}`,
+      },
+    } : null,
   };
-  res.render('product', { title: product.name, product, variants, related, meta });
+  res.render('product', { title: product.name, product, variants, images, colors, related, meta });
 });
 
 // Affiliate short link: /r/CODE -> home page with ?ref=CODE (tracked by middleware)
@@ -85,8 +119,35 @@ function loadCart(req) {
   const subtotal = items.reduce((s, i) => s + i.line_cents, 0);
   const freeShip = settings.free_shipping_over_cents > 0 && subtotal >= settings.free_shipping_over_cents;
   const shipping = items.length === 0 || freeShip ? 0 : settings.shipping_cents;
-  return { items, subtotal, shipping, total: subtotal + shipping };
+  // Discount code saved in the session; re-checked on every load (it may expire or run out).
+  let discount = null;
+  let discountError = null;
+  if (req.session.discountCode && items.length) {
+    const money = (c) => `${settings.currency_symbol}${(c / 100).toFixed(2)}`;
+    const r = discounts.evaluate(req.session.discountCode, subtotal, money);
+    if (r.error) discountError = r.error; else discount = r;
+  }
+  const discountCents = discount ? discount.amount : 0;
+  return { items, subtotal, shipping, discount, discountError, discountCents, total: subtotal - discountCents + shipping };
 }
+
+router.post('/cart/discount', (req, res) => {
+  const code = String(req.body.code || '').trim().slice(0, 40);
+  if (req.body.remove || !code) {
+    delete req.session.discountCode;
+    if (req.body.remove) flash(req, 'info', 'Discount code removed.');
+    return res.redirect(req.body.back === 'checkout' ? '/checkout' : '/cart');
+  }
+  req.session.discountCode = code;
+  const cart = loadCart(req);
+  if (cart.discountError) {
+    delete req.session.discountCode;
+    flash(req, 'error', cart.discountError);
+  } else if (cart.discount) {
+    flash(req, 'success', `Code ${cart.discount.code} applied: ${cart.discount.label}! 🎉`);
+  }
+  res.redirect(req.body.back === 'checkout' ? '/checkout' : '/cart');
+});
 
 router.post('/cart/add', (req, res) => {
   const variantId = parseInt(req.body.variant_id, 10);
@@ -101,12 +162,12 @@ router.post('/cart/add', (req, res) => {
   const line = cart.find((l) => l.variantId === variantId);
   const newQty = (line ? line.qty : 0) + qty;
   if (newQty > v.stock) {
-    flash(req, 'error', v.stock > 0 ? `Only ${v.stock} left in size ${v.size}. Grab them while you can.` : `Size ${v.size} just sold out. Try another size?`);
+    flash(req, 'error', v.stock > 0 ? `Only ${v.stock} left in ${variantLabel(v)}. Grab them while you can.` : `${variantLabel(v)} just sold out. Try another option?`);
     return res.redirect(`/p/${v.slug}`);
   }
   if (line) line.qty = newQty; else cart.push({ variantId, qty });
   req.session.cart = cart;
-  flash(req, 'success', `Added to your cart: size ${v.size}.`);
+  flash(req, 'success', `Added to your cart: ${variantLabel(v)}.`);
   res.redirect(req.body.buy_now ? '/checkout' : `/p/${v.slug}`);
 });
 
@@ -191,6 +252,11 @@ router.post('/checkout', async (req, res) => {
   if (!country) return fail('Please choose the country we are shipping to.');
   if (f.address.length < 4 || f.city.length < 2) return fail('Please enter your full delivery address and city.');
 
+  if (cart.discountError) {
+    delete req.session.discountCode;
+    return fail(`${cart.discountError} We've removed it. Please review your total.`);
+  }
+
   await releaseAbandoned(req);
 
   const settings = getSettings();
@@ -204,22 +270,24 @@ router.post('/checkout', async (req, res) => {
         if (!fresh || fresh.stock < item.qty) {
           const left = fresh ? fresh.stock : 0;
           throw Object.assign(new Error(left
-            ? `Almost! Only ${left} of ${item.product_name} (size ${item.size}) left. Please update your cart.`
-            : `${item.product_name} in size ${item.size} just sold out. Please remove it from your cart.`), { userFacing: true });
+            ? `Almost! Only ${left} of ${item.product_name} (${variantLabel(item)}) left. Please update your cart.`
+            : `${item.product_name} (${variantLabel(item)}) just sold out. Please remove it from your cart.`), { userFacing: true });
         }
       }
       const info = db.prepare(`
         INSERT INTO orders (user_id, customer_name, email, phone, address, city, postal_code, country, notes,
-                            subtotal_cents, shipping_cents, total_cents, status, currency, payment_method, affiliate_id, commission_rate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?, ?, ?, ?)`)
+                            subtotal_cents, shipping_cents, total_cents, status, currency, payment_method, affiliate_id, commission_rate,
+                            access_token, discount_code, discount_cents)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?, ?, ?, ?, ?, ?, ?)`)
         .run(req.user ? req.user.id : null, f.name, f.email.toLowerCase(), f.phone, f.address, f.city, f.postal_code, country, f.notes,
-          cart.subtotal, cart.shipping, cart.total, settings.currency, method, aff ? aff.id : null, aff ? settings.commission_rate : 0);
+          cart.subtotal, cart.shipping, cart.total, settings.currency, method, aff ? aff.id : null, aff ? settings.commission_rate : 0,
+          crypto.randomBytes(16).toString('hex'), cart.discount ? cart.discount.code : null, cart.discountCents);
       const id = Number(info.lastInsertRowid);
-      const insItem = db.prepare(`INSERT INTO order_items (order_id, product_id, variant_id, product_name, size, price_cents, qty)
-                                  VALUES (?, ?, ?, ?, ?, ?, ?)`);
+      const insItem = db.prepare(`INSERT INTO order_items (order_id, product_id, variant_id, product_name, color, size, price_cents, qty)
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
       const decStock = db.prepare('UPDATE product_variants SET stock = stock - ? WHERE id = ?');
       for (const item of cart.items) {
-        insItem.run(id, item.product_id, item.id, item.product_name, item.size, item.price_cents, item.qty);
+        insItem.run(id, item.product_id, item.id, item.product_name, item.color, item.size, item.price_cents, item.qty);
         decStock.run(item.qty, item.id);
       }
       return id;
@@ -262,6 +330,11 @@ router.get('/checkout/cancelled/:id', async (req, res) => {
 router.get('/order/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   let order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  // Links in emails carry a secret token (?t=...) so the customer can open the order on any device.
+  if (order && typeof req.query.t === 'string' && order.access_token) {
+    const a = Buffer.from(req.query.t), b = Buffer.from(order.access_token);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) req.session.orders = [...sessionOrders(req), id].slice(-20);
+  }
   const ownedBySession = sessionOrders(req).includes(id);
   const allowed = order && (ownedBySession || (req.user && (req.user.is_admin || order.user_id === req.user.id)));
   if (!allowed) return res.status(404).render('error', { title: 'Order not found', message: "We couldn't find that order on this device. If you ordered while logged in, you'll find it under My account." });
@@ -273,6 +346,7 @@ router.get('/order/:id', async (req, res) => {
   // The cart is kept until payment succeeds, so a cancelled payment never loses it.
   if (ownedBySession && order.status !== 'unpaid' && order.status !== 'cancelled') {
     req.session.cart = [];
+    delete req.session.discountCode;
     res.locals.cartCount = 0;
   }
 

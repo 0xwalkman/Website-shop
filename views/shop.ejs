@@ -1,10 +1,11 @@
 <%- include('partials/head') %>
-<h1 class="page-title"><%= category ? category.name : (q ? `Results for “${q}”` : 'The collection') %></h1>
+<h1 class="page-title"><%= sale ? 'On sale' : (category ? category.name : (q ? `Results for “${q}”` : 'The collection')) %></h1>
 <p class="muted page-sub"><%= products.length %> <%= products.length === 1 ? 'piece' : 'pieces' %><%= freeShipping ? ' · Free shipping worldwide' : '' %></p>
 <div class="chips-row">
-  <a class="chip <%= !category ? 'active' : '' %>" href="/shop<%= q ? `?q=${encodeURIComponent(q)}` : '' %>">All</a>
+  <a class="chip <%= !category && !sale ? 'active' : '' %>" href="/shop<%= q ? `?q=${encodeURIComponent(q)}` : '' %>">All</a>
+  <% if (anySale) { %><a class="chip sale-chip <%= sale ? 'active' : '' %>" href="/shop?sale=1">🔥 On sale</a><% } %>
   <% navCategories.forEach(c => { %>
-    <a class="chip <%= category && category.id === c.id ? 'active' : '' %>" href="/shop?category=<%= c.slug %>"><%= c.name %></a>
+    <a class="chip <%= category && category.id === c.id && !sale ? 'active' : '' %>" href="/shop?category=<%= c.slug %>"><%= c.name %></a>
   <% }) %>
 </div>
 <form class="toolbar" method="get" action="/shop">

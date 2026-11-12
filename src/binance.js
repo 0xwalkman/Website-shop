@@ -51,7 +51,7 @@ const amount = (cents) => (cents / 100).toFixed(2);
 
 async function createOrder({ order, items, baseUrl }) {
   const tradeNo = `OTF${order.id}N${crypto.randomBytes(6).toString('hex').toUpperCase()}`; // letters/digits only, <= 32
-  const summary = items.map((i) => `${i.qty}x ${i.product_name} (${i.size})`).join(', ').slice(0, 256);
+  const summary = items.map((i) => `${i.qty}x ${i.product_name} (${[i.color, i.size].filter(Boolean).join(' ')})`).join(', ').slice(0, 256);
   const usd = order.currency === 'usd';
   const data = await call('/binancepay/openapi/v3/order', {
     env: { terminalType: 'WEB' },

@@ -1,0 +1,29 @@
+<%- include('_head') %>
+<h1 class="page-title">Security</h1>
+<div class="card">
+  <h2>Two-step login</h2>
+  <% if (user.totp_enabled) { %>
+    <p><span class="status delivered">on</span> Your account asks for a code from your authenticator app at every login.</p>
+    <form method="post" action="/admin/security" class="form narrow">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="action" value="disable">
+      <label>To turn it off, enter a current code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-input"></label>
+      <button class="btn outline" type="submit">Turn off two-step login</button>
+    </form>
+  <% } else { %>
+    <p><span class="status pending">off</span> Anyone with your password can open the admin. Two-step login stops that: you'll also need a 6-digit code from your phone.</p>
+    <ol class="setup-steps">
+      <li>Install an authenticator app: Google Authenticator, Microsoft Authenticator, 1Password or Authy.</li>
+      <li>Scan this QR code with it:
+        <div class="qr"><img src="<%= setup.qr %>" alt="QR code for your authenticator app" width="220" height="220"></div>
+        <p class="muted small">Can't scan? Enter this key manually: <code><%= setup.secret %></code></p>
+      </li>
+      <li>Enter the 6-digit code the app shows:</li>
+    </ol>
+    <form method="post" action="/admin/security" class="form narrow">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="action" value="enable">
+      <label>Code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-input"></label>
+      <button class="btn" type="submit">Turn on two-step login</button>
+    </form>
+  <% } %>
+</div>
+<%- include('_foot') %>

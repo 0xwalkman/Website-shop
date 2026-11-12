@@ -1,0 +1,46 @@
+<%- include('_head') %>
+<h1 class="page-title">Discount codes</h1>
+<div class="two-col">
+  <form method="post" action="/admin/discounts" class="card form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <h2>New code</h2>
+    <label>Code<input name="code" required placeholder="WELCOME10" autocapitalize="characters" maxlength="30"></label>
+    <div class="field-pair">
+      <label>Type
+        <select name="kind"><option value="percent">% off</option><option value="fixed"><%= settings.currency_symbol %> off</option></select>
+      </label>
+      <label>Amount<input name="value" required inputmode="decimal" placeholder="10"></label>
+    </div>
+    <label>Minimum order (optional)<input name="min_subtotal" inputmode="decimal" placeholder="e.g. 50.00"></label>
+    <div class="field-pair">
+      <label>Max uses (optional)<input name="max_uses" type="number" min="1" placeholder="Unlimited"></label>
+      <label>Expires (optional)<input name="expires_at" type="date" min="<%= today %>"></label>
+    </div>
+    <p class="muted small">Applies to products only (shipping is already free). A use is counted when an order is paid. Affiliates earn their commission on the discounted price.</p>
+    <button class="btn" type="submit">Create code</button>
+  </form>
+  <div class="card">
+    <h2>Your codes</h2>
+    <% if (!codes.length) { %><p class="muted">No codes yet. Try a welcome code like WELCOME10 for first-time buyers.</p><% } %>
+    <div class="list">
+      <% codes.forEach(d => { const expired = d.expires_at && d.expires_at < today; const usedUp = d.max_uses != null && d.uses >= d.max_uses; %>
+        <div class="list-item">
+          <div>
+            <strong class="mono"><%= d.code %></strong>
+            <span class="status <%= !d.active || expired || usedUp ? 'cancelled' : 'delivered' %>"><%= !d.active ? 'paused' : expired ? 'expired' : usedUp ? 'used up' : 'active' %></span>
+            <div class="muted small">
+              <%= d.kind === 'percent' ? `${d.value}% off` : `${money(d.value)} off` %><%= d.min_subtotal_cents ? ` · min ${money(d.min_subtotal_cents)}` : '' %>
+              · used <%= d.uses %><%= d.max_uses != null ? ` / ${d.max_uses}` : '' %><%= d.expires_at ? ` · until ${d.expires_at}` : '' %>
+            </div>
+            <div class="muted small"><%= d.orders %> paid order(s) · <%= money(d.given) %> given</div>
+          </div>
+          <div class="li-actions">
+            <form method="post" action="/admin/discounts/<%= d.id %>"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small outline" name="action" value="toggle"><%= d.active ? 'Pause' : 'Activate' %></button></form>
+            <form method="post" action="/admin/discounts/<%= d.id %>" data-confirm="Delete <%= d.code %>?"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small danger" name="action" value="delete">✕</button></form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+<%- include('_foot') %>

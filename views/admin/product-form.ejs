@@ -17,40 +17,54 @@
       </label>
       <% if (!categories.length) { %><p class="muted small">Tip: <a href="/admin/categories">create a category</a> first.</p><% } %>
       <label>Description<textarea name="description" rows="5"><%= product.description || '' %></textarea></label>
-      <label>Image<input type="file" name="image" accept="image/*"></label>
-      <% if (product.image) { %>
-        <div class="img-preview"><img src="<%= product.image %>" alt=""><label class="check"><input type="checkbox" name="remove_image" value="1"> Remove image</label></div>
+      <label>Photos <span class="muted small">(you can pick several at once; the first is the cover)</span><input type="file" name="images" accept="image/*" multiple></label>
+      <% if (images.length) { %>
+        <div class="gallery-admin">
+          <% images.forEach((img, i) => { %>
+            <div class="gallery-item">
+              <img src="<%= img.path %>" alt="">
+              <label class="check small"><input type="radio" name="cover_image_id" value="<%= img.id %>" <%= i === 0 ? 'checked' : '' %>> Cover</label>
+              <label class="check small"><input type="checkbox" name="remove_image_ids[]" value="<%= img.id %>"> Remove</label>
+            </div>
+          <% }) %>
+        </div>
       <% } %>
       <label class="check"><input type="checkbox" name="is_active" value="1" <%= product.is_active ? 'checked' : '' %>> Visible in store</label>
     </div>
 
     <div class="card">
-      <h2>Sizes, prices & stock</h2>
-      <p class="muted small">Each size has its own price (<%= settings.currency_symbol %>) and stock quantity.</p>
+      <h2>Colors, sizes, prices & stock</h2>
+      <p class="muted small">One row per color + size. Leave <strong>Color</strong> empty if the item comes in one color. To put something on sale, enter its old price in <strong>Was</strong>: shoppers see it crossed out. Prices in <%= settings.currency_symbol %>.</p>
       <div class="variants" id="variants">
-        <div class="variant-head"><span>Size</span><span>Price</span><span>Stock</span><span></span></div>
+        <div class="variant-head"><span>Color</span><span>Size</span><span>Price</span><span>Was</span><span>Stock</span><span></span></div>
+        <p class="variant-legend muted small">Each row: <strong>Color · Size</strong> on top, <strong>Price · Was · Stock</strong> below.</p>
         <% variants.forEach(v => { %>
           <div class="variant-row">
             <input type="hidden" name="v_id[]" value="<%= v.id || '' %>">
-            <input name="v_size[]" value="<%= v.size %>" placeholder="M" aria-label="Size">
-            <input name="v_price[]" value="<%= v.priceRaw !== undefined ? v.priceRaw : (v.price_cents != null ? (v.price_cents / 100).toFixed(2) : '') %>" inputmode="decimal" placeholder="0.00" aria-label="Price">
+            <input name="v_color[]" value="<%= v.color || '' %>" placeholder="Color (optional)" aria-label="Color">
+            <input name="v_size[]" value="<%= v.size %>" placeholder="Size" aria-label="Size">
+            <input name="v_price[]" value="<%= v.priceRaw !== undefined ? v.priceRaw : (v.price_cents != null ? (v.price_cents / 100).toFixed(2) : '') %>" inputmode="decimal" placeholder="Price" aria-label="Price">
+            <input name="v_compare[]" value="<%= v.compareRaw !== undefined ? v.compareRaw : (v.compare_at_cents ? (v.compare_at_cents / 100).toFixed(2) : '') %>" inputmode="decimal" placeholder="Was" aria-label="Was (old price)">
             <input name="v_stock[]" type="number" min="0" value="<%= v.stock %>" aria-label="Stock">
-            <button type="button" class="icon-btn remove-variant" aria-label="Remove size">✕</button>
+            <button type="button" class="icon-btn remove-variant" aria-label="Remove row">✕</button>
           </div>
         <% }) %>
       </div>
       <template id="variant-template">
         <div class="variant-row">
           <input type="hidden" name="v_id[]" value="">
-          <input name="v_size[]" placeholder="M" aria-label="Size">
-          <input name="v_price[]" inputmode="decimal" placeholder="0.00" aria-label="Price">
+          <input name="v_color[]" placeholder="Color (optional)" aria-label="Color">
+          <input name="v_size[]" placeholder="Size" aria-label="Size">
+          <input name="v_price[]" inputmode="decimal" placeholder="Price" aria-label="Price">
+          <input name="v_compare[]" inputmode="decimal" placeholder="Was" aria-label="Was (old price)">
           <input name="v_stock[]" type="number" min="0" value="0" aria-label="Stock">
-          <button type="button" class="icon-btn remove-variant" aria-label="Remove size">✕</button>
+          <button type="button" class="icon-btn remove-variant" aria-label="Remove row">✕</button>
         </div>
       </template>
       <div class="actions">
-        <button type="button" class="btn small outline" id="add-variant">+ Add size</button>
+        <button type="button" class="btn small outline" id="add-variant">+ Add row</button>
         <button type="button" class="btn small outline" id="fill-price">Same price for all</button>
+        <button type="button" class="btn small outline" id="add-color">+ Add a color</button>
       </div>
     </div>
   </div>

@@ -25,16 +25,26 @@
   </ol>
 <% } %>
 
+<% if (order.tracking_number && ['shipped', 'delivered'].includes(order.status)) { %>
+  <div class="card tracking-card">
+    <div>
+      <div class="muted small"><%= order.tracking_carrier %> tracking number</div>
+      <strong class="mono"><%= order.tracking_number %></strong>
+    </div>
+    <% if (order.tracking_url) { %><a class="btn small" href="<%= order.tracking_url %>" target="_blank" rel="noopener">Track parcel ↗</a><% } %>
+  </div>
+<% } %>
 <div class="card">
   <div class="row"><span>Status</span><span class="status <%= order.status %>"><%= order.status === 'unpaid' ? 'awaiting payment' : order.status %></span></div>
   <div class="row"><span>Ordered</span><span><%= order.created_at.slice(0, 16) %> UTC</span></div>
   <div class="row"><span>Delivering to</span><span class="right"><%= order.customer_name %><br><%= order.address %><br><%= order.city %><%= order.postal_code ? ' ' + order.postal_code : '' %><%= order.country ? ', ' + order.country : '' %></span></div>
   <hr>
   <% items.forEach(i => { %>
-    <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= i.size %>)</span><span><%= money(i.price_cents * i.qty) %></span></div>
+    <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= [i.color, i.size].filter(Boolean).join(" / ") %>)</span><span><%= money(i.price_cents * i.qty) %></span></div>
   <% }) %>
   <hr>
   <div class="row"><span>Subtotal</span><span><%= money(order.subtotal_cents) %></span></div>
+  <% if (order.discount_cents) { %><div class="row"><span>Discount<%= order.discount_code ? ` (${order.discount_code})` : '' %></span><span>−<%= money(order.discount_cents) %></span></div><% } %>
   <div class="row"><span>Shipping</span><span><%= order.shipping_cents ? money(order.shipping_cents) : 'Free' %></span></div>
   <div class="row total"><span><%= isPaid || order.status === 'refunded' ? 'Paid' : 'Total' %></span><span><%= money(order.total_cents) %></span></div>
 </div>
