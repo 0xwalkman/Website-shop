@@ -151,7 +151,7 @@ function tx(fn) {
 }
 
 const DEFAULT_SETTINGS = {
-  store_name: 'Threadline',
+  store_name: 'Outouf',
   tagline: 'Everyday clothing, delivered.',
   currency_symbol: '$',
   shipping_cents: '500',
@@ -163,6 +163,8 @@ const DEFAULT_SETTINGS = {
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
+// Databases created before the store was named keep the old placeholder name; rename them.
+db.prepare("UPDATE settings SET value = 'Outouf' WHERE key = 'store_name' AND value = 'Threadline'").run();
 
 function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();

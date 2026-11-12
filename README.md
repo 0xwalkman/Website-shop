@@ -1,4 +1,4 @@
-# Threadline: a mobile-first clothing store with a USDC affiliate program
+# Outouf: a mobile-first clothing store with a USDC affiliate program
 
 A clothing shop built with Node.js, Express, EJS and SQLite (the `node:sqlite` module that ships with Node). There are no native modules and no database server to install.
 
