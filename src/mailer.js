@@ -12,7 +12,6 @@ const { db, getSettings } = require('./db');
 
 const OUTBOX_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, '..', 'data'), 'outbox');
 let transport = null;
-let rememberedBase = null;
 
 const smtpConfigured = () => Boolean(process.env.SMTP_HOST);
 
@@ -29,12 +28,10 @@ function getTransport() {
   return transport;
 }
 
-// Public URL used in email links. BASE_URL is preferred; otherwise the first request's host is used.
+// Public URL used in email links. Always BASE_URL (required in production), never the request's
+// Host header: that header is controlled by the visitor and could poison password-reset links.
 function siteUrl() {
-  return (process.env.BASE_URL || rememberedBase || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
-}
-function rememberBase(url) {
-  if (!rememberedBase) rememberedBase = url;
+  return (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -119,4 +116,4 @@ async function flush() {
 
 setInterval(() => flush().catch((e) => console.error('[mail]', e.message)), 60 * 1000).unref();
 
-module.exports = { queue, flush, siteUrl, rememberBase, smtpConfigured, render };
+module.exports = { queue, flush, siteUrl, smtpConfigured, render };

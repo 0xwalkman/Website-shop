@@ -373,6 +373,9 @@ function ensureAdmin() {
   }
   const anyAdmin = db.prepare('SELECT 1 FROM users WHERE is_admin = 1').get();
   if (anyAdmin && !process.env.ADMIN_EMAIL) return;
+  if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_PASSWORD) {
+    throw new Error('Set ADMIN_EMAIL and ADMIN_PASSWORD to create the first owner account (refusing to use a default password in production).');
+  }
   const password = process.env.ADMIN_PASSWORD || 'admin12345';
   createUser({ name: 'Store Admin', email, password, isAdmin: true });
   console.log(`[setup] Admin account created: ${email}${process.env.ADMIN_PASSWORD ? '' : ' / admin12345 (change it!)'}`);

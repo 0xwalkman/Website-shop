@@ -12,13 +12,8 @@ router.get('/page/:slug', (req, res) => {
   res.render('page', { title: page.title, page, meta: { description: `${page.title} | ${res.locals.settings.store_name}` } });
 });
 
-const contactLimiter = new Map();
-function limited(ip) {
-  const list = (contactLimiter.get(ip) || []).filter((t) => Date.now() - t < 60 * 60 * 1000);
-  list.push(Date.now());
-  contactLimiter.set(ip, list);
-  return list.length > 5;
-}
+const contactLimiter = require('../ratelimit').createLimiter(60 * 60 * 1000);
+const limited = (ip) => contactLimiter.hit(ip) > 5;
 
 router.get('/contact', (req, res) => {
   const values = req.user ? { name: req.user.name, email: req.user.email } : {};

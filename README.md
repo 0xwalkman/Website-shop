@@ -64,7 +64,7 @@ Open http://localhost:3000. Log in with the admin account to reach `/admin`.
 | `SEED_DEMO` | `true` | Set to `false` to start without the demo products |
 | `DATA_DIR` | `./data` | Where the SQLite database is stored |
 
-Uploaded images are saved in `./uploads`. Back up `data/` and `uploads/`.
+Uploaded photos are resized (max 1600px), converted to WebP and stripped of metadata such as GPS location, then saved in `./uploads`. Back up `data/` and `uploads/`.
 
 ## Setting up Stripe
 
@@ -100,6 +100,14 @@ How Binance Pay works:
 
 ## Notes
 - USDC payouts are sent **manually** by the admin from the store's wallet. The site records each request and its transaction hash; it does not hold any private keys.
+
+## Tests
+
+`npm test` runs four browser test suites against a real server, a fresh database and fake Stripe and Binance Pay APIs, so no money moves and no network is needed. Install Playwright once first: `npm i --no-save playwright && npx playwright install chromium`. The same tests run automatically on GitHub for every push (`.github/workflows/test.yml`).
+
+- `e2e-security`: login redirects, Host-header poisoning, CSRF, checkout rate limits, private pages
+- `e2e-stripe` / `e2e-binance`: paying, cancelling, abandoning, expiry, forged webhooks, wrong amounts, refunds
+- `e2e-all`: emails, password reset, 2FA, staff, photos, colors, sale prices, discounts, tracking, pages, SEO, stats
 
 ## Lost access to two-step login?
 On the server: `node --disable-warning=ExperimentalWarning scripts/reset-2fa.js you@example.com` (with Docker: `docker compose exec store node --disable-warning=ExperimentalWarning scripts/reset-2fa.js you@example.com`).

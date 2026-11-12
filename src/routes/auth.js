@@ -5,28 +5,25 @@ const { db, createUser } = require('../db');
 const { flash, currentAffiliate } = require('../middleware');
 const notify = require('../notify');
 const totp = require('../totp');
+const { createLimiter } = require('../ratelimit');
 
 const router = express.Router();
 
-// Simple in-memory login throttling per IP+email.
-const attempts = new Map();
-function throttled(key) {
-  const a = attempts.get(key);
-  return a && a.count >= 5 && Date.now() - a.first < 15 * 60 * 1000;
-}
-function recordFailure(key) {
-  const a = attempts.get(key);
-  if (!a || Date.now() - a.first > 15 * 60 * 1000) attempts.set(key, { count: 1, first: Date.now() });
-  else a.count++;
-}
+// Login throttling: 5 failed attempts per IP+account (or per account for 2FA codes) per 15 minutes.
+const failures = createLimiter(15 * 60 * 1000);
+const throttled = (key) => failures.count(key) >= 5;
+const recordFailure = (key) => failures.hit(key);
+const attempts = { delete: (key) => failures.clear(key) };
 
 // Signs a user out of every browser (after a password reset, or when they change their password).
 function signOutEverywhere(userId, keepSid = null) {
   db.prepare("DELETE FROM sessions WHERE json_extract(data, '$.userId') = ? AND sid IS NOT ?").run(userId, keepSid);
 }
 
+// Only allow redirects to a path on this site. Browsers treat "/\\evil.com" like "//evil.com",
+// so backslashes and control characters are rejected too.
 function safeNext(next) {
-  return typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') ? next : null;
+  return typeof next === 'string' && /^\/(?![\/\\])[^\\\s]*$/.test(next) && next.length < 500 ? next : null;
 }
 
 function login(req, userId, done) {
@@ -105,13 +102,8 @@ router.post('/login/2fa', (req, res, next) => {
 
 /* ---------- forgot / reset password ---------- */
 
-const resetRequests = new Map(); // ip -> [timestamps]
-function tooManyResets(ip) {
-  const list = (resetRequests.get(ip) || []).filter((t) => Date.now() - t < 60 * 60 * 1000);
-  list.push(Date.now());
-  resetRequests.set(ip, list);
-  return list.length > 5;
-}
+const resetRequests = createLimiter(60 * 60 * 1000);
+const tooManyResets = (ip) => resetRequests.hit(ip) > 5;
 const hashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
 
 router.get('/forgot', (req, res) => {

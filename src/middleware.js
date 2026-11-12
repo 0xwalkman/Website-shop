@@ -1,6 +1,5 @@
 const crypto = require('node:crypto');
 const { db, getSettings } = require('./db');
-const mailer = require('./mailer');
 
 const REF_COOKIE = 'ref';
 const REF_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days attribution window
@@ -77,7 +76,6 @@ function locals(req, res, next) {
   res.locals.usdc = (cents) => `${(Number(cents || 0) / 100).toFixed(2)} USDC`;
   res.locals.navCategories = db.prepare('SELECT id, name, slug FROM categories ORDER BY sort_order, name').all();
   res.locals.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-  mailer.rememberBase(res.locals.baseUrl);
   next();
 }
 

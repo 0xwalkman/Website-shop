@@ -6,6 +6,9 @@ const payments = require('../payments');
 const binance = require('../binance');
 const { COUNTRIES, countryName } = require('../countries');
 const discounts = require('../discounts');
+// Each checkout holds stock for up to an hour, so limit how many one visitor can start.
+const checkoutLimiter = require('../ratelimit').createLimiter(60 * 60 * 1000);
+const MAX_CHECKOUTS_PER_HOUR = 10;
 
 const router = express.Router();
 
@@ -252,6 +255,9 @@ router.post('/checkout', async (req, res) => {
   if (!country) return fail('Please choose the country we are shipping to.');
   if (f.address.length < 4 || f.city.length < 2) return fail('Please enter your full delivery address and city.');
 
+  if (checkoutLimiter.hit(req.ip) > MAX_CHECKOUTS_PER_HOUR) {
+    return fail('Too many checkout attempts from your connection. Please wait a little and try again, or contact us.', 429);
+  }
   if (cart.discountError) {
     delete req.session.discountCode;
     return fail(`${cart.discountError} We've removed it. Please review your total.`);

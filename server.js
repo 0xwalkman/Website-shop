@@ -17,7 +17,15 @@ const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-if (!process.env.SESSION_SECRET) {
+// Refuse to start a production server with unsafe settings.
+if (process.env.NODE_ENV === 'production') {
+  const missing = ['BASE_URL', 'SESSION_SECRET'].filter((k) => !process.env[k]);
+  if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (at least 32 characters)');
+  if (missing.length) {
+    console.error(`[fatal] Missing required settings for production: ${missing.join(', ')}. See .env.example.`);
+    process.exit(1);
+  }
+} else if (!process.env.SESSION_SECRET) {
   console.warn('[warn] SESSION_SECRET is not set; using a random secret (sessions reset on restart).');
 }
 
@@ -30,6 +38,8 @@ app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'SAMEORIGIN');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.COOKIE_SECURE === 'true') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
 
@@ -91,13 +101,14 @@ const upload = multer({
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
     },
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 }, // phone photos are large; they are shrunk right after upload
   fileFilter: (req, file, cb) => {
     const ok = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype);
     cb(ok ? null : new Error('Only JPG, PNG, WEBP or GIF images are allowed.'), ok);
   },
 });
-app.use('/admin', mw.requireAdmin, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 12 }]));
+app.use('/admin', mw.requireAdmin, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 12 }]),
+  require('./src/images').processUploads);
 
 app.use(mw.csrf);
 
@@ -114,8 +125,8 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || /images are allowed/.test(err.message)) {
-    mw.flash(req, 'error', err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 5 MB).' : err.message);
+  if (err instanceof multer.MulterError || /images are allowed/.test(err.message) || err.userMessage) {
+    mw.flash(req, 'error', err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 15 MB).' : (err.userMessage || err.message));
     return res.redirect(req.get('referer') || '/admin');
   }
   console.error(err);
