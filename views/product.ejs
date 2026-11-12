@@ -36,7 +36,7 @@
         </div>
         <ul class="mini-perks">
           <% if (freeShipping) { %><li>🌍 Free shipping worldwide</li><% } %>
-          <li>🔒 Secure payment by Stripe</li>
+          <li>🔒 <%= payLabel %></li>
         </ul>
       <% } else { %>
         <button class="btn" disabled>Sold out in every size</button>

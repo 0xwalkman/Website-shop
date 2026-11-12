@@ -13,7 +13,7 @@
 
 <ul class="perks">
   <% if (freeShipping) { %><li><span>🌍</span><div><strong>Free worldwide shipping</strong><small>On every order, no minimum</small></div></li><% } %>
-  <li><span>🔒</span><div><strong>Secure checkout</strong><small>Card payments by Stripe</small></div></li>
+  <li><span>🔒</span><div><strong>Secure checkout</strong><small><%= payLabel %></small></div></li>
   <li><span>💸</span><div><strong>Share & earn <%= settings.commission_rate %>%</strong><small>Paid out in USDC</small></div></li>
 </ul>
 

@@ -10,7 +10,7 @@
   <div class="success-hero">
     <div class="big-emoji">⏳</div>
     <h1>Confirming your payment…</h1>
-    <p class="muted">This usually takes a few seconds. Refresh the page in a moment. If you were charged, your order is safe.</p>
+    <p class="muted">This usually takes a few seconds<%= order.payment_method === 'binance' ? ', sometimes a minute for crypto' : '' %>. Refresh the page in a moment. If you paid, your order is safe.</p>
     <a class="btn outline" href="/order/<%= order.id %>">Refresh</a>
   </div>
 <% } else { %>

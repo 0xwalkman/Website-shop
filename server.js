@@ -10,6 +10,7 @@ const { db } = require('./src/db');
 const SqliteStore = require('./src/session-store')(session);
 const mw = require('./src/middleware');
 const payments = require('./src/payments');
+const binance = require('./src/binance');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +46,18 @@ app.post('/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb'
     console.error('[stripe] Webhook rejected:', err.message);
     res.status(400).send(`Webhook error: ${err.message}`);
   }
+});
+
+// Binance Pay webhook: treated only as a signal to re-check the order with Binance's API
+// (see src/binance.js), so it cannot mark anything paid by itself.
+app.post('/binance/webhook', express.raw({ type: '*/*', limit: '256kb' }), async (req, res) => {
+  try {
+    if (binance.enabled()) await binance.handleWebhook(req.body || Buffer.alloc(0));
+  } catch (err) {
+    console.error('[binance] Webhook handling failed:', err.message);
+    return res.json({ returnCode: 'FAIL', returnMessage: 'retry later' });
+  }
+  res.json({ returnCode: 'SUCCESS', returnMessage: null });
 });
 
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -104,10 +117,15 @@ app.use((err, req, res, next) => {
   res.status(500).render('error', { title: 'Something went wrong', message: 'An unexpected error occurred. Please try again.' });
 });
 
-setInterval(() => payments.sweepStale().catch((e) => console.error(e)), 10 * 60 * 1000).unref();
+setInterval(() => {
+  payments.sweepStale().catch((e) => console.error(e));
+  binance.sweepStale().catch((e) => console.error(e));
+}, 10 * 60 * 1000).unref();
 
 app.listen(PORT, () => {
   console.log(`Store running on http://localhost:${PORT}`);
-  if (!payments.enabled()) console.warn('[warn] STRIPE_SECRET_KEY is not set: checkout is disabled until you add it.');
-  else if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[warn] STRIPE_WEBHOOK_SECRET is not set: payments are only confirmed when shoppers return from Stripe.');
+  if (!payments.enabled() && !binance.enabled()) console.warn('[warn] No payment method configured: set Stripe and/or Binance Pay keys to enable checkout.');
+  if (!payments.enabled()) console.warn('[warn] STRIPE_SECRET_KEY is not set: card payments are off.');
+  if (!binance.enabled()) console.warn('[warn] BINANCE_PAY_API_KEY / BINANCE_PAY_SECRET_KEY are not set: Binance Pay is off.');
+  if (payments.enabled() && !process.env.STRIPE_WEBHOOK_SECRET) console.warn('[warn] STRIPE_WEBHOOK_SECRET is not set: payments are only confirmed when shoppers return from Stripe.');
 });

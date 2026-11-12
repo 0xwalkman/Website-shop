@@ -7,7 +7,7 @@
     </div>
     <ul class="footer-perks">
       <% if (freeShipping) { %><li>🌍 Free shipping worldwide</li><% } %>
-      <li>🔒 Secure card payments by Stripe</li>
+      <li>🔒 <%= payLabel %></li>
       <li>💸 <a href="/account/affiliate">Earn <%= settings.commission_rate %>% sharing your link</a></li>
     </ul>
   </div>

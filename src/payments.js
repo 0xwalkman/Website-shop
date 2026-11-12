@@ -86,7 +86,7 @@ function recordPayment(session) {
   if (!orderId || session.payment_status !== 'paid') return null;
   return tx(() => {
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    if (!order) return null;
+    if (!order || order.payment_method !== 'stripe') return null;
     if (order.stripe_session_id && order.stripe_session_id !== session.id) return order;
     if (session.amount_total !== order.total_cents || String(session.currency).toLowerCase() !== order.currency) {
       console.error(`[stripe] Amount mismatch for order #${orderId}: got ${session.amount_total} ${session.currency}`);
@@ -111,7 +111,7 @@ function releaseUnpaid(orderId) {
 }
 
 async function syncFromSession(order, sessionId) {
-  if (!enabled() || order.status !== 'unpaid' || sessionId !== order.stripe_session_id) return order;
+  if (!enabled() || order.payment_method !== 'stripe' || order.status !== 'unpaid' || sessionId !== order.stripe_session_id) return order;
   try {
     const session = await stripe().checkout.sessions.retrieve(sessionId);
     return recordPayment(session) || order;
@@ -160,7 +160,8 @@ async function refundOrder(order) {
 // paid ones are recorded (in case a webhook was missed), the rest give their stock back.
 async function sweepStale() {
   if (!enabled()) return;
-  const stale = db.prepare(`SELECT * FROM orders WHERE status = 'unpaid' AND created_at < datetime('now', '-70 minutes') LIMIT 50`).all();
+  const stale = db.prepare(`SELECT * FROM orders WHERE status = 'unpaid' AND payment_method = 'stripe'
+                            AND created_at < datetime('now', '-70 minutes') LIMIT 50`).all();
   for (const o of stale) {
     try {
       if (o.stripe_session_id) {

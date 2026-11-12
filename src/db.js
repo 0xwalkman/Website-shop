@@ -72,8 +72,12 @@ CREATE TABLE IF NOT EXISTS orders (
   currency TEXT NOT NULL DEFAULT 'usd',
   affiliate_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   commission_rate REAL NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL DEFAULT 'stripe',
   stripe_session_id TEXT,
   stripe_payment_intent TEXT,
+  binance_trade_no TEXT,
+  binance_prepay_id TEXT,
+  binance_transaction_id TEXT,
   paid_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -157,6 +161,11 @@ addColumn('orders', 'commission_rate', 'REAL NOT NULL DEFAULT 0');
 addColumn('orders', 'stripe_session_id', 'TEXT');
 addColumn('orders', 'stripe_payment_intent', 'TEXT');
 addColumn('orders', 'paid_at', 'TEXT');
+addColumn('orders', 'payment_method', "TEXT NOT NULL DEFAULT 'stripe'");
+addColumn('orders', 'binance_trade_no', 'TEXT');
+addColumn('orders', 'binance_prepay_id', 'TEXT');
+addColumn('orders', 'binance_transaction_id', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_binance ON orders(binance_trade_no)');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_session_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_pi ON orders(stripe_payment_intent)');
 

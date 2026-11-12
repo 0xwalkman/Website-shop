@@ -2,6 +2,7 @@ const express = require('express');
 const { db, tx, getSettings } = require('../db');
 const { flash, currentAffiliate } = require('../middleware');
 const payments = require('../payments');
+const binance = require('../binance');
 const { COUNTRIES, countryName } = require('../countries');
 
 const router = express.Router();
@@ -129,43 +130,62 @@ router.post('/cart/update', (req, res) => {
   res.redirect('/cart');
 });
 
-/* ---------------- checkout (Stripe) ---------------- */
+/* ---------------- checkout (Stripe or Binance Pay) ---------------- */
 
 function sessionOrders(req) {
   return req.session.orders || [];
 }
 
-// If this shopper abandoned an earlier Stripe page, release that reservation before starting a new one.
+function paymentMethods() {
+  const list = [];
+  if (payments.enabled()) list.push('stripe');
+  if (binance.enabled()) list.push('binance');
+  return list;
+}
+
+// Closes an unpaid order's payment page (Stripe or Binance) and returns its items to stock.
+async function cancelUnpaid(order) {
+  if (order.payment_method === 'binance') return binance.cancelOpen(order);
+  if (!order.stripe_session_id || await payments.expireSession(order.stripe_session_id)) payments.releaseUnpaid(order.id);
+}
+
+// If this shopper abandoned an earlier payment page, release that reservation before starting a new one.
 async function releaseAbandoned(req) {
   const ids = sessionOrders(req);
   if (!ids.length) return;
   const open = db.prepare(`SELECT * FROM orders WHERE status = 'unpaid' AND id IN (${ids.map(() => '?').join(',')})`).all(...ids);
-  for (const o of open) {
-    if (!o.stripe_session_id || await payments.expireSession(o.stripe_session_id)) payments.releaseUnpaid(o.id);
-  }
+  for (const o of open) await cancelUnpaid(o);
+}
+
+function renderCheckout(res, cart, values, extra = {}) {
+  res.render('checkout', {
+    title: 'Checkout', cart, values, countries: COUNTRIES,
+    methods: paymentMethods(), binanceCurrency: binance.payCurrency(), ...extra,
+  });
 }
 
 router.get('/checkout', (req, res) => {
   const cart = loadCart(req);
   if (!cart.items.length) return res.redirect('/cart');
   const values = req.user ? { name: req.user.name, email: req.user.email } : {};
-  res.render('checkout', { title: 'Checkout', cart, values, countries: COUNTRIES, paymentsReady: payments.enabled() });
+  renderCheckout(res, cart, values);
 });
 
 router.post('/checkout', async (req, res) => {
   const cart = loadCart(req);
   if (!cart.items.length) return res.redirect('/cart');
   const f = {};
-  for (const k of ['name', 'email', 'phone', 'address', 'city', 'postal_code', 'country', 'notes']) {
+  for (const k of ['name', 'email', 'phone', 'address', 'city', 'postal_code', 'country', 'notes', 'payment_method']) {
     f[k] = String(req.body[k] || '').trim().slice(0, 500);
   }
-  const fail = (msg, status = 400) => res.status(status).render('checkout', {
-    title: 'Checkout', cart, values: f, error: msg, countries: COUNTRIES, paymentsReady: payments.enabled(),
-  });
+  const fail = (msg, status = 400) => { res.status(status); renderCheckout(res, cart, f, { error: msg }); };
 
-  if (!payments.enabled()) return fail('Online payment is not available right now. Please try again a little later.', 503);
+  const methods = paymentMethods();
+  if (!methods.length) return fail('Online payment is not available right now. Please try again a little later.', 503);
+  const method = methods.includes(f.payment_method) ? f.payment_method : (methods.length === 1 ? methods[0] : null);
+  if (!method) return fail('Please choose how you would like to pay.');
   if (f.name.length < 2) return fail('Please enter your full name.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return fail('Please enter a valid email so we can send your order updates.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return fail('Please enter a valid email so we can reach you about your order.');
   if (f.phone.replace(/\D/g, '').length < 6) return fail('Please add a phone number. The courier may need it to reach you.');
   const country = countryName(f.country);
   if (!country) return fail('Please choose the country we are shipping to.');
@@ -190,10 +210,10 @@ router.post('/checkout', async (req, res) => {
       }
       const info = db.prepare(`
         INSERT INTO orders (user_id, customer_name, email, phone, address, city, postal_code, country, notes,
-                            subtotal_cents, shipping_cents, total_cents, status, currency, affiliate_id, commission_rate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?, ?, ?)`)
+                            subtotal_cents, shipping_cents, total_cents, status, currency, payment_method, affiliate_id, commission_rate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', ?, ?, ?, ?)`)
         .run(req.user ? req.user.id : null, f.name, f.email.toLowerCase(), f.phone, f.address, f.city, f.postal_code, country, f.notes,
-          cart.subtotal, cart.shipping, cart.total, settings.currency, aff ? aff.id : null, aff ? settings.commission_rate : 0);
+          cart.subtotal, cart.shipping, cart.total, settings.currency, method, aff ? aff.id : null, aff ? settings.commission_rate : 0);
       const id = Number(info.lastInsertRowid);
       const insItem = db.prepare(`INSERT INTO order_items (order_id, product_id, variant_id, product_name, size, price_cents, qty)
                                   VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -211,25 +231,30 @@ router.post('/checkout', async (req, res) => {
 
   req.session.orders = [...sessionOrders(req), orderId].slice(-20);
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-  let session;
+  let redirectTo;
   try {
-    session = await payments.createCheckoutSession({ order, items: cart.items, baseUrl: res.locals.baseUrl });
+    if (method === 'binance') {
+      redirectTo = await binance.createOrder({ order, items: cart.items, baseUrl: res.locals.baseUrl });
+    } else {
+      const session = await payments.createCheckoutSession({ order, items: cart.items, baseUrl: res.locals.baseUrl });
+      db.prepare('UPDATE orders SET stripe_session_id = ? WHERE id = ?').run(session.id, orderId);
+      redirectTo = session.url;
+    }
   } catch (err) {
-    console.error('[stripe] Could not create checkout session', err.message);
+    console.error(`[${method}] Could not open payment page:`, err.message);
     payments.releaseUnpaid(orderId);
     return fail('We could not open the payment page. You have not been charged. Please try again.', 502);
   }
-  db.prepare('UPDATE orders SET stripe_session_id = ? WHERE id = ?').run(session.id, orderId);
-  res.redirect(303, session.url);
+  res.redirect(303, redirectTo);
 });
 
-// Stripe sends shoppers here when they press "back" on the payment page.
+// Stripe and Binance Pay send shoppers here when they press "back" on the payment page.
 router.get('/checkout/cancelled/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const order = sessionOrders(req).includes(id) && db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-  if (order && order.status === 'unpaid') {
-    if (!order.stripe_session_id || await payments.expireSession(order.stripe_session_id)) payments.releaseUnpaid(id);
-  }
+  if (order && order.status === 'unpaid') await cancelUnpaid(order);
+  const fresh = order && db.prepare('SELECT status FROM orders WHERE id = ?').get(id);
+  if (fresh && fresh.status === 'paid') return res.redirect(`/order/${id}`); // paid after all
   flash(req, 'info', 'Payment cancelled. You have not been charged, and your cart is right where you left it.');
   res.redirect('/cart');
 });
@@ -239,10 +264,12 @@ router.get('/order/:id', async (req, res) => {
   let order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
   const ownedBySession = sessionOrders(req).includes(id);
   const allowed = order && (ownedBySession || (req.user && (req.user.is_admin || order.user_id === req.user.id)));
-  if (!allowed) return res.status(404).render('error', { title: 'Order not found', message: "We couldn't find that order. If you just paid, check your email for the confirmation link." });
+  if (!allowed) return res.status(404).render('error', { title: 'Order not found', message: "We couldn't find that order on this device. If you ordered while logged in, you'll find it under My account." });
 
-  const returning = typeof req.query.session_id === 'string';
-  if (returning) order = await payments.syncFromSession(order, req.query.session_id);
+  const returning = typeof req.query.session_id === 'string' || req.query.bp === '1';
+  if (typeof req.query.session_id === 'string') order = await payments.syncFromSession(order, req.query.session_id);
+  // Binance: check on every visit while unpaid, so "Refresh" on the waiting screen works.
+  if (order.payment_method === 'binance' && order.status === 'unpaid') order = await binance.sync(order);
   // The cart is kept until payment succeeds, so a cancelled payment never loses it.
   if (ownedBySession && order.status !== 'unpaid' && order.status !== 'cancelled') {
     req.session.cart = [];

@@ -305,3 +305,10 @@ tr:last-child td { border-bottom: 0; }
   .steps { grid-template-columns: repeat(3, 1fr); }
   .footer-grid { grid-template-columns: 1fr auto; }
 }
+.pay-options { display: grid; gap: 8px; margin-bottom: 14px; }
+.pay-option { display: flex !important; gap: 12px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; margin: 0 !important; background: #fff; }
+.pay-option:has(input:checked) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.pay-option input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--ink); }
+.pay-option span { display: grid; gap: 2px; }
+.pay-option strong { font-size: 15px; color: var(--ink); }
+.pay-option small { font-weight: 400; color: var(--muted); font-size: 13px; line-height: 1.4; }

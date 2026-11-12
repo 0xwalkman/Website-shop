@@ -11,6 +11,7 @@
       <div>
         <strong>#<%= o.id %> · <%= o.customer_name %></strong>
         <div class="muted small"><%= o.created_at %> · <%= o.item_count %> item(s) · <%= o.city %><%= o.country ? ', ' + o.country : '' %></div>
+        <div class="small"><%= o.payment_method === 'binance' ? '🟡 Binance Pay' : '💳 Card' %></div>
         <% if (o.affiliate_name) { %><div class="small">🔗 via <%= o.affiliate_name %></div><% } %>
       </div>
       <span class="status <%= o.status %>"><%= o.status === 'unpaid' ? 'awaiting payment' : o.status %></span>

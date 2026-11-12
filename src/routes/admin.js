@@ -5,6 +5,7 @@ const { db, tx, setSetting, uniqueSlug } = require('../db');
 const { flash, parseMoney, toArray } = require('../middleware');
 const { balances, NETWORKS } = require('../affiliate');
 const payments = require('../payments');
+const binance = require('../binance');
 
 const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -260,13 +261,15 @@ router.get('/orders/:id', (req, res) => {
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
   const commission = db.prepare(`SELECT c.*, u.name AS affiliate_name, u.email AS affiliate_email
                                   FROM commissions c JOIN users u ON u.id = c.affiliate_id WHERE c.order_id = ?`).get(order.id);
-  res.render('admin/order', { title: `Order #${order.id}`, order, items, commission, statuses: MANUAL_STATUSES, stripeReady: payments.enabled() });
+  res.render('admin/order', { title: `Order #${order.id}`, order, items, commission, statuses: order.payment_method === 'binance' && order.paid_at ? [...MANUAL_STATUSES, 'refunded'] : MANUAL_STATUSES, stripeReady: payments.enabled() });
 });
 
 router.post('/orders/:id/status', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   const status = req.body.status;
-  if (!order || !MANUAL_STATUSES.includes(status)) return res.redirect('/admin/orders');
+  // Binance Pay refunds are made in the Binance merchant dashboard, then recorded here by hand.
+  const allowed = order && (MANUAL_STATUSES.includes(status) || (status === 'refunded' && order.payment_method === 'binance' && order.paid_at));
+  if (!allowed) return res.redirect('/admin/orders');
   if (status !== order.status) {
     // Stock and the affiliate commission follow the status (cancelling returns items to stock).
     tx(() => payments.applyStatus(order, status));
@@ -278,7 +281,7 @@ router.post('/orders/:id/status', (req, res) => {
 router.post('/orders/:id/refund', async (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return res.redirect('/admin/orders');
-  if (!order.stripe_payment_intent || !payments.enabled() || ['unpaid', 'refunded'].includes(order.status)) {
+  if (order.payment_method !== 'stripe' || !order.stripe_payment_intent || !payments.enabled() || ['unpaid', 'refunded'].includes(order.status)) {
     flash(req, 'error', 'This order has no Stripe payment to refund.');
   } else {
     try {
@@ -336,7 +339,7 @@ router.post('/withdrawals/:id', (req, res) => {
 /* ---------------- settings ---------------- */
 
 router.get('/settings', (req, res) => {
-  res.render('admin/settings', { title: 'Settings', currencies: CURRENCIES, stripeReady: payments.enabled(), webhookReady: Boolean(process.env.STRIPE_WEBHOOK_SECRET) });
+  res.render('admin/settings', { title: 'Settings', currencies: CURRENCIES, stripeReady: payments.enabled(), webhookReady: Boolean(process.env.STRIPE_WEBHOOK_SECRET), binanceReady: binance.enabled(), binanceCurrency: binance.payCurrency() });
 });
 
 router.post('/settings', (req, res) => {

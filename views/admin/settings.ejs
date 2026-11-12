@@ -8,6 +8,15 @@
     <p class="muted small">Set <code>STRIPE_SECRET_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> on the server and restart it. Point a Stripe webhook at <code><%= baseUrl %>/stripe/webhook</code> with the events <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>, <code>checkout.session.async_payment_failed</code>, <code>checkout.session.expired</code> and <code>charge.refunded</code>. See the README for details.</p>
   <% } %>
 </div>
+<div class="card">
+  <h2>Payments (Binance Pay)</h2>
+  <div class="row"><span>Binance Pay API key</span><span class="status <%= binanceReady ? 'delivered' : 'cancelled' %>"><%= binanceReady ? 'connected' : 'missing' %></span></div>
+  <% if (binanceReady) { %>
+    <p class="muted small">USD orders are charged 1:1 in <strong><%= binanceCurrency %></strong>. Other store currencies are converted by Binance at the market rate.</p>
+  <% } else { %>
+    <p class="muted small">Set <code>BINANCE_PAY_API_KEY</code> and <code>BINANCE_PAY_SECRET_KEY</code> on the server and restart it. Binance notifies <code><%= baseUrl %>/binance/webhook</code> automatically (it must be reachable over the internet). See the README for details.</p>
+  <% } %>
+</div>
 <form method="post" action="/admin/settings" class="form">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <div class="two-col">

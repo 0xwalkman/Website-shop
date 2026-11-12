@@ -8,7 +8,7 @@ A clothing shop built with Node.js, Express, EJS and SQLite (the `node:sqlite` m
 - Home page, category chips, search and sorting, plus a bottom tab bar on phones
 - Product page with a size picker. Each size has its own **price and stock**
 - Cart and guest checkout with a country picker. **Shipping is free worldwide by default**
-- **Card payments through Stripe Checkout.** Items are held while the customer pays and released if they cancel or abandon the payment page
+- **Two ways to pay: card (Stripe) or Binance Pay (crypto).** Customers choose at checkout, and only the methods you have set up are shown. Items are held while the customer pays and released if they cancel or abandon the payment page
 - Order tracking: paid → shipped → delivered
 - Customer accounts with order history
 
@@ -46,6 +46,8 @@ Open http://localhost:3000. Log in with the admin account to reach `/admin`.
 | `PORT` | `3000` | |
 | `STRIPE_SECRET_KEY` | none | **Required to take payments.** `sk_live_…`, or `sk_test_…` for testing. Checkout is disabled without it |
 | `STRIPE_WEBHOOK_SECRET` | none | `whsec_…` from your Stripe webhook (see below). Strongly recommended |
+| `BINANCE_PAY_API_KEY` / `BINANCE_PAY_SECRET_KEY` | none | Turns on Binance Pay. From the Binance merchant portal (see below) |
+| `BINANCE_PAY_CURRENCY` | `USDT` | Coin USD orders are charged in, 1:1 (`USDT` or `USDC`) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@store.local` / `admin12345` | Creates the admin on first start. **Change these.** |
 | `SESSION_SECRET` | random | Set this, or everyone is logged out on every restart |
 | `BASE_URL` | taken from the request | Public URL used in affiliate links, e.g. `https://shop.example.com` |
@@ -72,6 +74,20 @@ How payments work:
 - When Stripe confirms the payment (by webhook, or when the customer returns), the order becomes **paid**. The amount and currency are checked against the order first.
 - Pressing "back" on Stripe, abandoning the page, or letting it expire (1 hour) cancels the order and puts the items back in stock. Nothing is charged.
 - If a webhook is ever missed, the site checks unpaid orders with Stripe every 10 minutes.
+
+## Setting up Binance Pay
+
+1. Apply for a Binance Pay **merchant** account, then create an API key in the merchant portal (Developers / API Management).
+2. Set `BINANCE_PAY_API_KEY` and `BINANCE_PAY_SECRET_KEY` on the server and restart. The **Binance Pay** option appears at checkout and **Admin → Settings** shows it as connected.
+3. Make sure `BASE_URL` is your public `https://` address. Each order tells Binance to notify `BASE_URL/binance/webhook`, so you don't need to configure a webhook in the portal.
+
+How Binance Pay works:
+- With the store in USD, the customer pays the exact total in USDT (or `BINANCE_PAY_CURRENCY`). In other store currencies, Binance converts the price at the market rate.
+- **Payment is always confirmed by asking Binance's API directly**, using a request signed with your key. This happens when the customer returns, when Binance's notification arrives, and every 10 minutes for open orders. The notification itself is never trusted, so a fake one cannot mark an order paid. For USD orders, the amount and coin must match exactly.
+- If the customer cancels or abandons the page, the Binance order is closed and the items go back in stock. An order Binance reports as paid but for the wrong amount is **not** cancelled. It stays "awaiting payment" (and is logged) so you can review it.
+- **Refunds:** send them from the Binance merchant dashboard, then set the order to **refunded** in the admin. That puts the items back in stock and cancels the affiliate commission.
+
+> The Binance Pay integration follows Binance's published API (v3 create order, v2 query order, close order, HMAC-SHA512 signing). It was tested against a simulated Binance Pay server. Before going live, place one small real order to confirm it works with your merchant account.
 
 ## Notes
 - USDC payouts are sent **manually** by the admin from the store's wallet. The site records each request and its transaction hash; it does not hold any private keys.

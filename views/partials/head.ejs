@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111111">
   <% const pageTitle = title ? `${title} · ${settings.store_name}` : `${settings.store_name} · ${settings.tagline}`;
      const m = typeof meta !== 'undefined' && meta ? meta : {};
-     const pageDesc = m.description || `${settings.tagline} ${freeShipping ? 'Free shipping worldwide on every order. ' : ''}Pay securely by card.`; %>
+     const pageDesc = m.description || `${settings.tagline} ${freeShipping ? 'Free shipping worldwide on every order. ' : ''}${payLabel}.`; %>
   <title><%= pageTitle %></title>
   <meta name="description" content="<%= pageDesc %>">
   <meta property="og:site_name" content="<%= settings.store_name %>">

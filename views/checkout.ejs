@@ -1,8 +1,8 @@
 <%- include('partials/head') %>
 <h1 class="page-title">Checkout</h1>
-<p class="muted page-sub">Step 1 of 2: where should we send it? Next, you'll pay on Stripe's secure page.</p>
+<p class="muted page-sub">Step 1 of 2: where should we send it, and how would you like to pay?</p>
 <% if (typeof error !== 'undefined' && error) { %><div class="flash error"><%= error %></div><% } %>
-<% if (!paymentsReady) { %>
+<% if (!methods.length) { %>
   <div class="flash info">Online payment is being set up and will be available very soon. Your cart is saved in the meantime.</div>
 <% } %>
 <div class="cart-layout">
@@ -27,11 +27,31 @@
     </div>
     <label>Delivery notes (optional)<textarea name="notes" rows="2" placeholder="Gate code, landmark, best time to deliver…"><%= values.notes || '' %></textarea></label>
 
-    <div class="pay-note">
-      <strong>🔒 Secure payment by Stripe</strong>
-      <span>Pay by card on the next page. Your card details go straight to Stripe and never touch our servers.</span>
-    </div>
-    <button class="btn block" type="submit" <%= paymentsReady ? '' : 'disabled' %>>Continue to payment · <%= money(cart.total) %></button>
+    <% if (methods.length) { %>
+      <h2>Payment</h2>
+      <% const chosen = methods.includes(values.payment_method) ? values.payment_method : methods[0]; %>
+      <div class="pay-options">
+        <% if (methods.includes('stripe')) { %>
+          <label class="pay-option">
+            <input type="radio" name="payment_method" value="stripe" <%= chosen === 'stripe' ? 'checked' : '' %>>
+            <span>
+              <strong>💳 Card</strong>
+              <small>Visa, Mastercard and more, on Stripe's secure page. Your card details never touch our servers.</small>
+            </span>
+          </label>
+        <% } %>
+        <% if (methods.includes('binance')) { %>
+          <label class="pay-option">
+            <input type="radio" name="payment_method" value="binance" <%= chosen === 'binance' ? 'checked' : '' %>>
+            <span>
+              <strong>🟡 Binance Pay</strong>
+              <small><%= settings.currency === 'usd' ? `Pay ${(cart.total / 100).toFixed(2)} ${binanceCurrency}` : 'Pay in crypto' %> from your Binance app. Scan the QR code or log in on the next page.</small>
+            </span>
+          </label>
+        <% } %>
+      </div>
+    <% } %>
+    <button class="btn block" type="submit" <%= methods.length ? '' : 'disabled' %>>Continue to payment · <%= money(cart.total) %></button>
     <% if (!user) { %><p class="muted small center">Already shop with us? <a href="/login?next=/checkout">Log in</a> to keep all your orders in one place.</p><% } %>
   </form>
   <div class="summary card">
