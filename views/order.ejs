@@ -1,0 +1,25 @@
+<%- include('partials/head') %>
+<% if (placed) { %>
+  <div class="success-hero">
+    <div class="big-emoji">🎉</div>
+    <h1>Thank you, <%= order.customer_name.split(' ')[0] %>!</h1>
+    <p class="muted">Your order #<%= order.id %> has been placed. We'll contact you at <%= order.phone %> to confirm delivery.</p>
+  </div>
+<% } else { %>
+  <h1 class="page-title">Order #<%= order.id %></h1>
+<% } %>
+<div class="card">
+  <div class="row"><span>Status</span><span class="status <%= order.status %>"><%= order.status %></span></div>
+  <div class="row"><span>Date</span><span><%= order.created_at %> UTC</span></div>
+  <div class="row"><span>Deliver to</span><span class="right"><%= order.address %>, <%= order.city %></span></div>
+  <hr>
+  <% items.forEach(i => { %>
+    <div class="row small"><span><%= i.qty %> × <%= i.product_name %> (<%= i.size %>)</span><span><%= money(i.price_cents * i.qty) %></span></div>
+  <% }) %>
+  <hr>
+  <div class="row"><span>Subtotal</span><span><%= money(order.subtotal_cents) %></span></div>
+  <div class="row"><span>Shipping</span><span><%= order.shipping_cents ? money(order.shipping_cents) : 'Free' %></span></div>
+  <div class="row total"><span>Total</span><span><%= money(order.total_cents) %></span></div>
+</div>
+<p><a class="btn outline" href="/shop">Continue shopping</a></p>
+<%- include('partials/foot') %>

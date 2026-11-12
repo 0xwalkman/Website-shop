@@ -1,0 +1,44 @@
+<%- include('_head') %>
+<h1 class="page-title">Dashboard</h1>
+<div class="stats">
+  <div class="stat accent"><div class="muted small">Revenue</div><div class="big-num"><%= money(s.revenue) %></div></div>
+  <div class="stat"><div class="muted small">Orders</div><div class="big-num"><%= s.orders %></div></div>
+  <div class="stat"><div class="muted small">Products</div><div class="big-num"><%= s.products %></div></div>
+  <div class="stat"><div class="muted small">Customers</div><div class="big-num"><%= s.customers %></div></div>
+  <div class="stat"><div class="muted small">Commissions owed</div><div class="big-num"><%= usdc(s.commissionsOwed - s.paidOut > 0 ? s.commissionsOwed - s.paidOut : 0) %></div></div>
+  <div class="stat"><div class="muted small">Paid to affiliates</div><div class="big-num"><%= usdc(s.paidOut) %></div></div>
+</div>
+<div class="quick-actions">
+  <a class="btn" href="/admin/products/new">+ New product</a>
+  <a class="btn outline" href="/admin/categories">+ New category</a>
+  <% if (adminPendingWithdrawals) { %><a class="btn outline" href="/admin/withdrawals"><%= adminPendingWithdrawals %> withdrawal request(s)</a><% } %>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>Recent orders</h2>
+    <% if (!recent.length) { %><p class="muted">No orders yet.</p><% } %>
+    <div class="list">
+      <% recent.forEach(o => { %>
+        <a class="list-item" href="/admin/orders/<%= o.id %>">
+          <div><strong>#<%= o.id %></strong> <span class="muted small"><%= o.customer_name %></span></div>
+          <span class="status <%= o.status %>"><%= o.status %></span>
+          <strong><%= money(o.total_cents) %></strong>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Low stock</h2>
+    <% if (!s.lowStock.length) { %><p class="muted">All sizes are well stocked.</p><% } %>
+    <div class="list">
+      <% s.lowStock.forEach(v => { %>
+        <a class="list-item" href="/admin/products/<%= v.pid %>/edit">
+          <div><strong><%= v.product_name %></strong> <span class="muted small">size <%= v.size %></span></div>
+          <span class="status <%= v.stock === 0 ? 'cancelled' : 'pending' %>"><%= v.stock %> left</span>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+</div>
+<%- include('_foot') %>

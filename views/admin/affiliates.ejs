@@ -1,0 +1,21 @@
+<%- include('_head') %>
+<h1 class="page-title">Affiliates</h1>
+<p class="muted">Every registered user has a referral link. Commission rate: <strong><%= settings.commission_rate %>%</strong> (<a href="/admin/settings">change</a>).</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>User</th><th>Code</th><th>Clicks</th><th>Orders</th><th>Pending</th><th>Available</th><th>Withdrawn</th><th>Wallet</th></tr></thead>
+  <tbody>
+  <% users.forEach(u => { %>
+    <tr>
+      <td><strong><%= u.name %></strong><div class="muted small"><%= u.email %></div></td>
+      <td><code><%= u.referral_code %></code></td>
+      <td><%= u.clicks %></td>
+      <td><%= u.orders %></td>
+      <td><%= usdc(u.bal.pending) %></td>
+      <td><strong><%= usdc(u.bal.available) %></strong></td>
+      <td><%= usdc(u.bal.withdrawn) %></td>
+      <td class="small"><% if (u.wallet_address) { %><%= networks[u.wallet_network] ? networks[u.wallet_network].label : u.wallet_network %><br><code><%= u.wallet_address.slice(0, 8) %>…<%= u.wallet_address.slice(-6) %></code><% } else { %><span class="muted">—</span><% } %></td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table></div>
+<%- include('_foot') %>

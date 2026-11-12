@@ -1,0 +1,35 @@
+<%- include('_head') %>
+<h1 class="page-title">Withdrawal requests</h1>
+<div class="chips-row">
+  <% ['pending', 'paid', 'rejected'].forEach(st => { %><a class="chip <%= status === st ? 'active' : '' %>" href="/admin/withdrawals?status=<%= st %>"><%= st %></a><% }) %>
+</div>
+<% if (!withdrawals.length) { %><p class="muted">No <%= status %> withdrawals.</p><% } %>
+<% withdrawals.forEach(w => { %>
+  <div class="card withdrawal">
+    <div class="section-head">
+      <div><strong><%= usdc(w.amount_cents) %></strong> <span class="muted small">#<%= w.id %> · <%= w.created_at %> UTC</span></div>
+      <span class="status <%= w.status %>"><%= w.status %></span>
+    </div>
+    <div class="small"><%= w.name %> · <%= w.email %></div>
+    <div class="wallet-saved">
+      <div class="muted small">USDC on <strong><%= networks[w.wallet_network] ? networks[w.wallet_network].label : w.wallet_network %></strong></div>
+      <div class="copy-row"><input readonly value="<%= w.wallet_address %>" id="addr-<%= w.id %>"><button class="btn small" type="button" data-copy="#addr-<%= w.id %>">Copy</button></div>
+    </div>
+    <% if (w.status === 'pending') { %>
+      <form method="post" action="/admin/withdrawals/<%= w.id %>" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>Transaction hash (after sending the USDC)<input name="tx_hash" placeholder="0x… / Solana signature" spellcheck="false"></label>
+        <label>Note (optional, visible to user)<input name="note" maxlength="500"></label>
+        <div class="actions">
+          <button class="btn" name="action" value="paid">Mark as paid</button>
+          <button class="btn danger" name="action" value="reject" formnovalidate data-confirm-btn="Reject this withdrawal? The amount returns to the user's balance.">Reject</button>
+        </div>
+      </form>
+    <% } else { %>
+      <% if (w.tx_hash) { %><div class="small">Tx: <code class="addr"><%= w.tx_hash %></code></div><% } %>
+      <% if (w.admin_note) { %><div class="muted small">Note: <%= w.admin_note %></div><% } %>
+      <div class="muted small">Processed <%= w.processed_at %> UTC</div>
+    <% } %>
+  </div>
+<% }) %>
+<%- include('_foot') %>

@@ -1,0 +1,31 @@
+<%- include('_head') %>
+<div class="section-head">
+  <h1 class="page-title">Products</h1>
+  <a class="btn" href="/admin/products/new">+ New product</a>
+</div>
+<form class="toolbar" method="get">
+  <input type="search" name="q" value="<%= q %>" placeholder="Search products">
+  <select name="category" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    <% categories.forEach(c => { %><option value="<%= c.id %>" <%= catId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+  </select>
+</form>
+<% if (!products.length) { %>
+  <div class="empty"><p class="muted">No products found.</p><a class="btn" href="/admin/products/new">Add your first product</a></div>
+<% } %>
+<div class="list">
+  <% products.forEach(p => { %>
+    <a class="list-item" href="/admin/products/<%= p.id %>/edit">
+      <div class="li-main">
+        <div class="mini-thumb"><% if (p.image) { %><img src="<%= p.image %>" alt=""><% } else { %><span><%= p.name.slice(0,1) %></span><% } %></div>
+        <div>
+          <strong><%= p.name %></strong> <% if (!p.is_active) { %><span class="status cancelled">hidden</span><% } %>
+          <div class="muted small"><%= p.category_name || 'Uncategorised' %> · Sizes: <%= p.sizes || '—' %></div>
+          <div class="muted small">Stock: <%= p.total_stock %></div>
+        </div>
+      </div>
+      <strong><%= p.min_price == null ? '—' : (p.min_price === p.max_price ? money(p.min_price) : `${money(p.min_price)}–${money(p.max_price)}`) %></strong>
+    </a>
+  <% }) %>
+</div>
+<%- include('_foot') %>

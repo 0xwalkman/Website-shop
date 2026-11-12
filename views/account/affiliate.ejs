@@ -1,0 +1,130 @@
+<%- include('../partials/head') %>
+<% const link = `${baseUrl}/r/${user.referral_code}`; %>
+<h1 class="page-title">Earn <%= settings.commission_rate %>% 💸</h1>
+<p class="muted">Share your link. When someone orders through it within 30 days, you earn <%= settings.commission_rate %>% of their order (excluding shipping), paid in USDC.</p>
+
+<div class="card ref-card">
+  <div class="muted small">Your referral link</div>
+  <div class="copy-row"><input readonly value="<%= link %>" id="reflink"><button class="btn small" type="button" data-copy="#reflink">Copy</button></div>
+  <div class="share-btns">
+    <button class="btn small" type="button" data-share="<%= link %>" data-title="<%= settings.store_name %>">Share…</button>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://wa.me/?text=<%= encodeURIComponent('Check out ' + settings.store_name + ': ' + link) %>">WhatsApp</a>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://t.me/share/url?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent('Check out ' + settings.store_name) %>">Telegram</a>
+    <a class="btn small outline" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?url=<%= encodeURIComponent(link) %>&text=<%= encodeURIComponent('Check out ' + settings.store_name) %>">X</a>
+  </div>
+  <p class="muted small">Tip: you can also add <code>?ref=<%= user.referral_code %></code> to any product link.</p>
+</div>
+
+<div class="stats">
+  <div class="stat accent"><div class="muted small">Available</div><div class="big-num"><%= usdc(bal.available) %></div></div>
+  <div class="stat"><div class="muted small">Pending</div><div class="big-num"><%= usdc(bal.pending) %></div></div>
+  <div class="stat"><div class="muted small">Withdrawn</div><div class="big-num"><%= usdc(bal.withdrawn) %></div></div>
+  <div class="stat"><div class="muted small">In payout</div><div class="big-num"><%= usdc(bal.requested) %></div></div>
+  <div class="stat"><div class="muted small">Link clicks</div><div class="big-num"><%= st.clicks %></div></div>
+  <div class="stat"><div class="muted small">Orders</div><div class="big-num"><%= st.orders %></div></div>
+  <div class="stat"><div class="muted small">Sales generated</div><div class="big-num"><%= money(st.sales) %></div></div>
+  <div class="stat"><div class="muted small">Conversion</div><div class="big-num"><%= st.conversion.toFixed(1) %>%</div></div>
+</div>
+
+<div class="card">
+  <div class="section-head"><strong>Last 14 days</strong><span class="muted small legend"><i class="lg clicks"></i>clicks <i class="lg earn"></i>earnings</span></div>
+  <% const maxC = Math.max(1, ...series.map(s => s.clicks)); const maxE = Math.max(1, ...series.map(s => s.cents)); %>
+  <div class="bars" role="img" aria-label="Clicks and earnings over the last 14 days">
+    <% series.forEach(s => { %>
+      <div class="bar-col" title="<%= s.day %>: <%= s.clicks %> clicks, <%= usdc(s.cents) %>">
+        <div class="bar-pair">
+          <div class="bar clicks" style="height: <%= Math.round(s.clicks / maxC * 100) %>%"></div>
+          <div class="bar earn" style="height: <%= Math.round(s.cents / maxE * 100) %>%"></div>
+        </div>
+        <span><%= s.day.slice(8) %></span>
+      </div>
+    <% }) %>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card" id="wallet">
+    <h2>USDC wallet</h2>
+    <% if (user.wallet_address) { %>
+      <div class="wallet-saved">
+        <div class="muted small"><%= networks[user.wallet_network] ? networks[user.wallet_network].label : user.wallet_network %></div>
+        <code class="addr"><%= user.wallet_address %></code>
+      </div>
+    <% } else { %>
+      <p class="muted small">Add the wallet where you want to receive your USDC payouts.</p>
+    <% } %>
+    <details <%= user.wallet_address ? '' : 'open' %>>
+      <summary><%= user.wallet_address ? 'Change wallet' : 'Add wallet' %></summary>
+      <form method="post" action="/account/wallet" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>Network
+          <select name="network" required>
+            <% Object.entries(networks).forEach(([k, n]) => { %><option value="<%= k %>" <%= user.wallet_network === k ? 'selected' : '' %>><%= n.label %></option><% }) %>
+          </select>
+        </label>
+        <label>USDC address<input name="address" required value="<%= user.wallet_address || '' %>" placeholder="0x… or Solana address" autocomplete="off" spellcheck="false"></label>
+        <label>Confirm with your password<input type="password" name="password" required autocomplete="current-password"></label>
+        <p class="muted small">⚠️ Double-check the address and network. Payments sent to a wrong address cannot be recovered.</p>
+        <button class="btn" type="submit">Save wallet</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="card" id="withdraw">
+    <h2>Withdraw</h2>
+    <p class="muted small">Minimum <%= usdc(settings.min_withdrawal_cents) %>. <%= settings.commission_hold_note %></p>
+    <% if (!user.wallet_address) { %>
+      <p class="flash info">Save your USDC wallet first to request a withdrawal.</p>
+    <% } else if (bal.available < settings.min_withdrawal_cents) { %>
+      <p class="muted">You need at least <%= usdc(settings.min_withdrawal_cents) %> available to withdraw. Keep sharing!</p>
+    <% } else { %>
+      <form method="post" action="/account/withdraw" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>Amount (USDC)
+          <div class="copy-row">
+            <input name="amount" id="wamount" inputmode="decimal" required value="<%= (bal.available / 100).toFixed(2) %>">
+            <button class="btn small outline" type="button" onclick="document.getElementById('wamount').value='<%= (bal.available / 100).toFixed(2) %>'">Max</button>
+          </div>
+        </label>
+        <p class="muted small">Sent to <code><%= user.wallet_address.slice(0, 6) %>…<%= user.wallet_address.slice(-4) %></code> on <%= networks[user.wallet_network] ? networks[user.wallet_network].label : user.wallet_network %>.</p>
+        <button class="btn block" type="submit">Request withdrawal</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<h2>Withdrawal history</h2>
+<% if (!withdrawals.length) { %><p class="muted">No withdrawals yet.</p><% } else { %>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>Details</th></tr></thead>
+    <tbody>
+    <% withdrawals.forEach(w => { %>
+      <tr>
+        <td><%= w.created_at.slice(0, 10) %></td>
+        <td><%= usdc(w.amount_cents) %></td>
+        <td><span class="status <%= w.status %>"><%= w.status %></span></td>
+        <td class="small"><% if (w.tx_hash) { %>Tx: <code><%= w.tx_hash.slice(0, 10) %>…</code><% } %> <%= w.admin_note || '' %></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+<% } %>
+
+<h2>Commissions</h2>
+<% if (!commissions.length) { %><p class="muted">No referred orders yet. Share your link to start earning!</p><% } else { %>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Order</th><th>Order value</th><th>Earned</th><th>Status</th></tr></thead>
+    <tbody>
+    <% commissions.forEach(c => { %>
+      <tr>
+        <td><%= c.created_at.slice(0, 10) %></td>
+        <td>#<%= c.order_id %> <span class="muted small">(<%= c.order_status %>)</span></td>
+        <td><%= money(c.order_amount_cents) %></td>
+        <td><strong><%= usdc(c.amount_cents) %></strong> <span class="muted small"><%= c.rate %>%</span></td>
+        <td><span class="status <%= c.status %>"><%= c.status %></span></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+<% } %>
+<%- include('../partials/foot') %>

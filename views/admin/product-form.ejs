@@ -1,0 +1,67 @@
+<%- include('_head') %>
+<div class="section-head">
+  <h1 class="page-title"><%= title %></h1>
+  <% if (product.id && product.slug && product.is_active) { %><a class="chip" href="/p/<%= product.slug %>" target="_blank">View in store ↗</a><% } %>
+</div>
+<form method="post" action="<%= product.id ? `/admin/products/${product.id}` : '/admin/products' %>" enctype="multipart/form-data" class="form" id="product-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="two-col">
+    <div class="card">
+      <h2>Details</h2>
+      <label>Name<input name="name" required maxlength="120" value="<%= product.name || '' %>" placeholder="e.g. Classic Cotton Tee"></label>
+      <label>Category
+        <select name="category_id">
+          <option value="">— Uncategorised —</option>
+          <% categories.forEach(c => { %><option value="<%= c.id %>" <%= product.category_id === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+        </select>
+      </label>
+      <% if (!categories.length) { %><p class="muted small">Tip: <a href="/admin/categories">create a category</a> first.</p><% } %>
+      <label>Description<textarea name="description" rows="5"><%= product.description || '' %></textarea></label>
+      <label>Image<input type="file" name="image" accept="image/*"></label>
+      <% if (product.image) { %>
+        <div class="img-preview"><img src="<%= product.image %>" alt=""><label class="check"><input type="checkbox" name="remove_image" value="1"> Remove image</label></div>
+      <% } %>
+      <label class="check"><input type="checkbox" name="is_active" value="1" <%= product.is_active ? 'checked' : '' %>> Visible in store</label>
+    </div>
+
+    <div class="card">
+      <h2>Sizes, prices & stock</h2>
+      <p class="muted small">Each size has its own price (<%= settings.currency_symbol %>) and stock quantity.</p>
+      <div class="variants" id="variants">
+        <div class="variant-head"><span>Size</span><span>Price</span><span>Stock</span><span></span></div>
+        <% variants.forEach(v => { %>
+          <div class="variant-row">
+            <input type="hidden" name="v_id[]" value="<%= v.id || '' %>">
+            <input name="v_size[]" value="<%= v.size %>" placeholder="M" aria-label="Size">
+            <input name="v_price[]" value="<%= v.priceRaw !== undefined ? v.priceRaw : (v.price_cents != null ? (v.price_cents / 100).toFixed(2) : '') %>" inputmode="decimal" placeholder="0.00" aria-label="Price">
+            <input name="v_stock[]" type="number" min="0" value="<%= v.stock %>" aria-label="Stock">
+            <button type="button" class="icon-btn remove-variant" aria-label="Remove size">✕</button>
+          </div>
+        <% }) %>
+      </div>
+      <template id="variant-template">
+        <div class="variant-row">
+          <input type="hidden" name="v_id[]" value="">
+          <input name="v_size[]" placeholder="M" aria-label="Size">
+          <input name="v_price[]" inputmode="decimal" placeholder="0.00" aria-label="Price">
+          <input name="v_stock[]" type="number" min="0" value="0" aria-label="Stock">
+          <button type="button" class="icon-btn remove-variant" aria-label="Remove size">✕</button>
+        </div>
+      </template>
+      <div class="actions">
+        <button type="button" class="btn small outline" id="add-variant">+ Add size</button>
+        <button type="button" class="btn small outline" id="fill-price">Same price for all</button>
+      </div>
+    </div>
+  </div>
+  <div class="sticky-actions">
+    <a class="btn outline" href="/admin/products">Back</a>
+    <button class="btn" type="submit"><%= product.id ? 'Save changes' : 'Create product' %></button>
+  </div>
+</form>
+<% if (product.id) { %>
+  <form method="post" action="/admin/products/<%= product.id %>/delete" data-confirm="Delete this product permanently?" class="danger-zone">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small danger">Delete product</button>
+  </form>
+<% } %>
+<%- include('_foot') %>

@@ -1,0 +1,16 @@
+<%- include('partials/head') %>
+<div class="auth card form">
+  <h1>Create account</h1>
+  <p class="muted small">Track your orders and earn <%= settings.commission_rate %>% in USDC on every order made through your link.</p>
+  <% if (typeof error !== 'undefined' && error) { %><div class="flash error"><%= error %></div><% } %>
+  <form method="post" action="/register">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="next" value="<%= next %>">
+    <label>Name<input name="name" required value="<%= values.name || '' %>" autocomplete="name"></label>
+    <label>Email<input type="email" name="email" required value="<%= values.email || '' %>" autocomplete="email"></label>
+    <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <button class="btn block" type="submit">Create account</button>
+  </form>
+  <p class="muted small center">Already registered? <a href="/login<%= next ? `?next=${encodeURIComponent(next)}` : '' %>">Log in</a></p>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,14 @@
+<%- include('partials/head') %>
+<div class="auth card form">
+  <h1>Log in</h1>
+  <% if (typeof error !== 'undefined' && error) { %><div class="flash error"><%= error %></div><% } %>
+  <form method="post" action="/login">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="next" value="<%= next %>">
+    <label>Email<input type="email" name="email" required value="<%= values.email || '' %>" autocomplete="email"></label>
+    <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="btn block" type="submit">Log in</button>
+  </form>
+  <p class="muted small center">New here? <a href="/register<%= next ? `?next=${encodeURIComponent(next)}` : '' %>">Create an account</a></p>
+</div>
+<%- include('partials/foot') %>

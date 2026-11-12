@@ -1,0 +1,40 @@
+<%- include('../partials/head') %>
+<div class="section-head">
+  <h1 class="page-title">Hi, <%= user.name.split(' ')[0] %></h1>
+  <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small outline">Log out</button></form>
+</div>
+
+<a class="card earn-teaser" href="/account/affiliate">
+  <div>
+    <div class="muted small">Available to withdraw</div>
+    <div class="big-num"><%= usdc(bal.available) %></div>
+    <div class="muted small"><%= usdc(bal.pending) %> pending</div>
+  </div>
+  <span class="btn small">Earn dashboard →</span>
+</a>
+
+<h2>My orders</h2>
+<% if (!orders.length) { %>
+  <p class="muted">No orders yet. <a href="/shop">Start shopping</a></p>
+<% } else { %>
+  <div class="list">
+    <% orders.forEach(o => { %>
+      <a class="list-item" href="/order/<%= o.id %>">
+        <div><strong>#<%= o.id %></strong><div class="muted small"><%= o.created_at.slice(0, 10) %></div></div>
+        <span class="status <%= o.status %>"><%= o.status %></span>
+        <strong><%= money(o.total_cents) %></strong>
+      </a>
+    <% }) %>
+  </div>
+<% } %>
+
+<details class="card">
+  <summary><strong>Change password</strong></summary>
+  <form method="post" action="/account/password" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
+    <label>New password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <button class="btn" type="submit">Update password</button>
+  </form>
+</details>
+<%- include('../partials/foot') %>

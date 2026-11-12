@@ -1,0 +1,11 @@
+<a class="card product-card" href="/p/<%= p.slug %>">
+  <div class="thumb">
+    <% if (p.image) { %><img src="<%= p.image %>" alt="<%= p.name %>" loading="lazy"><% } else { %><div class="ph"><%= p.name.slice(0, 1) %></div><% } %>
+    <% if (!p.total_stock) { %><span class="tag">Sold out</span><% } %>
+  </div>
+  <div class="card-body">
+    <div class="muted small"><%= p.category_name || '' %></div>
+    <div class="pname"><%= p.name %></div>
+    <div class="price"><%= p.min_price === p.max_price ? money(p.min_price) : `From ${money(p.min_price)}` %></div>
+  </div>
+</a>

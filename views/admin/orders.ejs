@@ -1,0 +1,21 @@
+<%- include('_head') %>
+<h1 class="page-title">Orders</h1>
+<div class="chips-row">
+  <a class="chip <%= !status ? 'active' : '' %>" href="/admin/orders">All</a>
+  <% statuses.forEach(st => { %><a class="chip <%= status === st ? 'active' : '' %>" href="/admin/orders?status=<%= st %>"><%= st %></a><% }) %>
+</div>
+<% if (!orders.length) { %><p class="muted">No orders.</p><% } %>
+<div class="list">
+  <% orders.forEach(o => { %>
+    <a class="list-item" href="/admin/orders/<%= o.id %>">
+      <div>
+        <strong>#<%= o.id %> · <%= o.customer_name %></strong>
+        <div class="muted small"><%= o.created_at %> · <%= o.item_count %> item(s) · <%= o.city %></div>
+        <% if (o.affiliate_name) { %><div class="small">🔗 via <%= o.affiliate_name %></div><% } %>
+      </div>
+      <span class="status <%= o.status %>"><%= o.status %></span>
+      <strong><%= money(o.total_cents) %></strong>
+    </a>
+  <% }) %>
+</div>
+<%- include('_foot') %>

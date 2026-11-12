@@ -1,0 +1,15 @@
+</main>
+<footer class="footer wrap">
+  <p><strong><%= settings.store_name %></strong> — <%= settings.tagline %></p>
+  <p class="muted">Share your link and earn <%= settings.commission_rate %>% on every order. <a href="/account/affiliate">Learn more</a></p>
+</footer>
+<nav class="bottom-nav">
+  <a href="/" class="<%= path === '/' ? 'active' : '' %>"><span>🏠</span>Home</a>
+  <a href="/shop" class="<%= path === '/shop' ? 'active' : '' %>"><span>👕</span>Shop</a>
+  <a href="/cart" class="<%= path === '/cart' ? 'active' : '' %>"><span>🛍<% if (cartCount) { %><i class="dot"><%= cartCount %></i><% } %></span>Cart</a>
+  <a href="/account/affiliate" class="<%= path === '/account/affiliate' ? 'active' : '' %>"><span>💸</span>Earn</a>
+  <a href="/account" class="<%= path === '/account' || path === '/login' ? 'active' : '' %>"><span>👤</span><%= user ? 'Account' : 'Log in' %></a>
+</nav>
+<script src="/public/js/app.js" defer></script>
+</body>
+</html>

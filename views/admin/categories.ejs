@@ -1,0 +1,41 @@
+<%- include('_head') %>
+<h1 class="page-title">Categories</h1>
+<div class="two-col">
+  <div class="card">
+    <h2><%= edit ? `Edit “${edit.name}”` : 'Add category' %></h2>
+    <form method="post" action="<%= edit ? `/admin/categories/${edit.id}` : '/admin/categories' %>" enctype="multipart/form-data" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Name<input name="name" required maxlength="80" value="<%= edit ? edit.name : '' %>" placeholder="e.g. T-Shirts"></label>
+      <label>Display order<input name="sort_order" type="number" value="<%= edit ? edit.sort_order : categories.length + 1 %>"></label>
+      <label>Image (optional)<input type="file" name="image" accept="image/*"></label>
+      <% if (edit && edit.image) { %>
+        <div class="img-preview"><img src="<%= edit.image %>" alt=""><label class="check"><input type="checkbox" name="remove_image" value="1"> Remove image</label></div>
+      <% } %>
+      <div class="actions">
+        <button class="btn" type="submit"><%= edit ? 'Save' : 'Add category' %></button>
+        <% if (edit) { %><a class="btn outline" href="/admin/categories">Cancel</a><% } %>
+      </div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>All categories (<%= categories.length %>)</h2>
+    <% if (!categories.length) { %><p class="muted">No categories yet.</p><% } %>
+    <div class="list">
+      <% categories.forEach(c => { %>
+        <div class="list-item">
+          <div class="li-main">
+            <div class="mini-thumb"><% if (c.image) { %><img src="<%= c.image %>" alt=""><% } else { %><span><%= c.name.slice(0,1) %></span><% } %></div>
+            <div><strong><%= c.name %></strong><div class="muted small"><%= c.product_count %> product(s) · /<%= c.slug %></div></div>
+          </div>
+          <div class="li-actions">
+            <a class="btn small outline" href="/admin/categories/<%= c.id %>/edit">Edit</a>
+            <form method="post" action="/admin/categories/<%= c.id %>/delete" data-confirm="Delete category “<%= c.name %>”? Its products will become uncategorised.">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn small danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+<%- include('_foot') %>

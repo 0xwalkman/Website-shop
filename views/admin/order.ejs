@@ -1,0 +1,48 @@
+<%- include('_head') %>
+<div class="section-head">
+  <h1 class="page-title">Order #<%= order.id %></h1>
+  <span class="status <%= order.status %>"><%= order.status %></span>
+</div>
+<div class="two-col">
+  <div class="card">
+    <h2>Items</h2>
+    <% items.forEach(i => { %>
+      <div class="row"><span><%= i.qty %> × <%= i.product_name %> <span class="muted">(<%= i.size %>)</span></span><span><%= money(i.price_cents * i.qty) %></span></div>
+    <% }) %>
+    <hr>
+    <div class="row"><span>Subtotal</span><span><%= money(order.subtotal_cents) %></span></div>
+    <div class="row"><span>Shipping</span><span><%= money(order.shipping_cents) %></span></div>
+    <div class="row total"><span>Total</span><span><%= money(order.total_cents) %></span></div>
+  </div>
+  <div class="card">
+    <h2>Customer</h2>
+    <p><strong><%= order.customer_name %></strong><br>
+      <a href="mailto:<%= order.email %>"><%= order.email %></a><br>
+      <a href="tel:<%= order.phone %>"><%= order.phone %></a><br>
+      <%= order.address %>, <%= order.city %></p>
+    <% if (order.notes) { %><p class="muted">Note: <%= order.notes %></p><% } %>
+    <p class="muted small">Placed <%= order.created_at %> UTC · updated <%= order.updated_at %> UTC</p>
+
+    <h2>Update status</h2>
+    <form method="post" action="/admin/orders/<%= order.id %>/status" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="status-picker">
+        <% statuses.forEach(st => { %>
+          <label class="size"><input type="radio" name="status" value="<%= st %>" <%= order.status === st ? 'checked' : '' %>><span><%= st %></span></label>
+        <% }) %>
+      </div>
+      <button class="btn" type="submit">Update</button>
+      <p class="muted small">Cancelling returns items to stock. Affiliate commission becomes withdrawable when the order is <strong>delivered</strong>.</p>
+    </form>
+  </div>
+</div>
+<% if (commission) { %>
+  <div class="card">
+    <h2>Affiliate commission</h2>
+    <div class="row"><span>Affiliate</span><span><%= commission.affiliate_name %> (<%= commission.affiliate_email %>)</span></div>
+    <div class="row"><span>Commission</span><span><%= usdc(commission.amount_cents) %> (<%= commission.rate %>% of <%= money(commission.order_amount_cents) %>)</span></div>
+    <div class="row"><span>Status</span><span class="status <%= commission.status %>"><%= commission.status %></span></div>
+  </div>
+<% } %>
+<p><a class="btn outline" href="/admin/orders">← All orders</a></p>
+<%- include('_foot') %>

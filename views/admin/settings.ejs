@@ -1,0 +1,23 @@
+<%- include('_head') %>
+<h1 class="page-title">Settings</h1>
+<form method="post" action="/admin/settings" class="form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="two-col">
+    <div class="card">
+      <h2>Store</h2>
+      <label>Store name<input name="store_name" value="<%= settings.store_name %>" maxlength="60"></label>
+      <label>Tagline<input name="tagline" value="<%= settings.tagline %>" maxlength="140"></label>
+      <label>Currency symbol<input name="currency_symbol" value="<%= settings.currency_symbol %>" maxlength="4"></label>
+      <label>Shipping fee<input name="shipping" inputmode="decimal" value="<%= (settings.shipping_cents / 100).toFixed(2) %>"></label>
+      <label>Free shipping over (0 = never)<input name="free_shipping_over" inputmode="decimal" value="<%= (settings.free_shipping_over_cents / 100).toFixed(2) %>"></label>
+    </div>
+    <div class="card">
+      <h2>Affiliate program</h2>
+      <label>Commission rate (%)<input name="commission_rate" inputmode="decimal" value="<%= settings.commission_rate %>"></label>
+      <p class="muted small">Applies to new orders. Existing commissions keep the rate they were created with.</p>
+      <label>Minimum withdrawal (USDC)<input name="min_withdrawal" inputmode="decimal" value="<%= (settings.min_withdrawal_cents / 100).toFixed(2) %>"></label>
+    </div>
+  </div>
+  <button class="btn" type="submit">Save settings</button>
+</form>
+<%- include('_foot') %>

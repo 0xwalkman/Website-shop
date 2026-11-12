@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title><%= title ? `${title} · ${settings.store_name}` : settings.store_name %></title>
+  <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="logo" href="/"><%= settings.store_name %></a>
+    <nav class="desk-nav">
+      <a href="/shop" class="<%= path === '/shop' ? 'active' : '' %>">Shop</a>
+      <% navCategories.slice(0, 5).forEach(c => { %><a href="/shop?category=<%= c.slug %>"><%= c.name %></a><% }) %>
+      <a href="/account/affiliate" class="<%= path === '/account/affiliate' ? 'active' : '' %>">Earn 💸</a>
+    </nav>
+    <div class="top-actions">
+      <form action="/shop" method="get" class="search">
+        <input type="search" name="q" placeholder="Search" aria-label="Search products">
+      </form>
+      <% if (user && user.is_admin) { %><a class="chip dark" href="/admin">Admin</a><% } %>
+      <a class="icon-btn desk-only" href="/account" aria-label="Account">👤</a>
+      <a class="icon-btn" href="/cart" aria-label="Cart">🛍<% if (cartCount) { %><span class="badge"><%= cartCount %></span><% } %></a>
+    </div>
+  </div>
+</header>
+<main class="wrap page">
+<% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.message %></div><% } %>
