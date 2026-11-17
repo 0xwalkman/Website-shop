@@ -17,6 +17,7 @@
   <% if (m.canonical) { %><link rel="canonical" href="<%= m.canonical %>"><meta property="og:url" content="<%= m.canonical %>"><% } %>
   <% if (m.jsonld) { %><script type="application/ld+json"><%- JSON.stringify(m.jsonld).replace(/</g, '\\u003c') %></script><% } %>
   <link rel="stylesheet" href="/public/css/style.css">
+  <% if (typeof csrfToken !== 'undefined') { %><meta name="csrf-token" content="<%= csrfToken %>"><% } %>
 </head>
 <body>
 <% if (freeShipping) { %><div class="announce">🌍 Free shipping worldwide, on every order</div><% } %>
@@ -34,7 +35,7 @@
       </form>
       <% if (user && user.is_admin) { %><a class="chip dark" href="/admin">Admin</a><% } %>
       <a class="icon-btn desk-only" href="/account" aria-label="Account">👤</a>
-      <a class="icon-btn" href="/cart" aria-label="Cart">🛍<% if (cartCount) { %><span class="badge"><%= cartCount %></span><% } %></a>
+      <a class="icon-btn" href="/cart" aria-label="Cart">🛍<span class="badge" data-cart-count <%= cartCount ? '' : 'hidden' %>><%= cartCount %></span></a>
     </div>
   </div>
 </header>

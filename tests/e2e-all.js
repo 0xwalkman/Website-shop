@@ -151,7 +151,8 @@ const linkIn = (html, re) => { const m = html.match(re); return m && m[0].replac
   await shot(v, '43-product-colors-sale');
   await v.fill('#qty', '2');
   await v.click('button:has-text("Add to cart")');
-  check('added-to-cart message names color', (await v.textContent('.flash')).includes('White / M'));
+  await v.waitForFunction(() => document.querySelector('#toast-item').textContent.includes('White / M'));
+  check('added-to-cart confirmation names color', (await v.textContent('#toast-item')).includes('White / M'));
 
   /* ---------- Discount + checkout + emails ---------- */
   await v.goto(B + '/cart');

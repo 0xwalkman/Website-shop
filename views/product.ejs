@@ -71,6 +71,12 @@
       <% } %>
     </form>
 
+    <% if (inStock.length) { %>
+      <div class="sticky-buy" id="sticky-buy" hidden>
+        <div class="sticky-info"><span class="sticky-name"><%= product.name %></span><strong id="sticky-price"><%= first ? money(first.price_cents) : '' %></strong></div>
+        <button type="button" class="btn" id="sticky-add">Add to cart</button>
+      </div>
+    <% } %>
     <% if (product.description) { %><div class="desc"><%= product.description %></div><% } %>
 
     <div class="share-box">

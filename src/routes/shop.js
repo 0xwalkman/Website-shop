@@ -152,26 +152,56 @@ router.post('/cart/discount', (req, res) => {
   res.redirect(req.body.back === 'checkout' ? '/checkout' : '/cart');
 });
 
+// Requests from the page's own script ask for JSON so the cart updates without a reload.
+const wantsJson = (req) => String(req.get('accept') || '').includes('application/json');
+const cartCount = (req) => (req.session.cart || []).reduce((n, l) => n + l.qty, 0);
+
 router.post('/cart/add', (req, res) => {
   const variantId = parseInt(req.body.variant_id, 10);
   const qty = Math.min(Math.max(parseInt(req.body.qty, 10) || 1, 1), 20);
-  const v = db.prepare(`SELECT v.*, p.slug FROM product_variants v JOIN products p ON p.id = v.product_id
+  const v = db.prepare(`SELECT v.*, p.slug, p.name AS product_name, p.image FROM product_variants v JOIN products p ON p.id = v.product_id
                         WHERE v.id = ? AND p.is_active = 1`).get(variantId);
-  if (!v) {
-    flash(req, 'error', 'Pick your size first.');
-    return res.redirect(req.get('referer') || '/shop');
-  }
+  const fail = (message, back) => {
+    if (wantsJson(req)) return res.status(400).json({ ok: false, error: message });
+    flash(req, 'error', message);
+    return res.redirect(back);
+  };
+  if (!v) return fail('Pick your size first.', req.get('referer') || '/shop');
   const cart = req.session.cart || [];
   const line = cart.find((l) => l.variantId === variantId);
-  const newQty = (line ? line.qty : 0) + qty;
-  if (newQty > v.stock) {
-    flash(req, 'error', v.stock > 0 ? `Only ${v.stock} left in ${variantLabel(v)}. Grab them while you can.` : `${variantLabel(v)} just sold out. Try another option?`);
-    return res.redirect(`/p/${v.slug}`);
+  const inCart = line ? line.qty : 0;
+  if (inCart + qty > v.stock) {
+    const left = v.stock - inCart;
+    return fail(v.stock <= 0 ? `${variantLabel(v)} just sold out. Try another option?`
+      : left > 0 ? `Only ${left} more available in ${variantLabel(v)}.`
+        : `You already have all ${v.stock} of ${variantLabel(v)} in your cart.`, `/p/${v.slug}`);
   }
-  if (line) line.qty = newQty; else cart.push({ variantId, qty });
+  if (line) line.qty += qty; else cart.push({ variantId, qty });
   req.session.cart = cart;
+  if (wantsJson(req)) {
+    const c = loadCart(req);
+    return res.json({
+      ok: true,
+      cartCount: cartCount(req),
+      subtotal: res.locals.money(c.subtotal - c.discountCents),
+      item: { name: v.product_name, option: variantLabel(v), qty, price: res.locals.money(v.price_cents), image: v.image },
+    });
+  }
   flash(req, 'success', `Added to your cart: ${variantLabel(v)}.`);
   res.redirect(req.body.buy_now ? '/checkout' : `/p/${v.slug}`);
+});
+
+// Sizes, prices and stock for the quick-add picker on product cards.
+router.get('/api/products/:slug', (req, res) => {
+  const p = db.prepare('SELECT id, name, slug, image FROM products WHERE slug = ? AND is_active = 1').get(req.params.slug);
+  if (!p) return res.status(404).json({ ok: false });
+  const variants = db.prepare('SELECT id, color, size, price_cents, compare_at_cents, stock FROM product_variants WHERE product_id = ? ORDER BY sort_order, id')
+    .all(p.id).map((v) => ({
+      id: v.id, color: v.color, size: v.size, stock: Math.max(0, v.stock),
+      price: res.locals.money(v.price_cents),
+      was: v.compare_at_cents > v.price_cents ? res.locals.money(v.compare_at_cents) : null,
+    }));
+  res.json({ ok: true, name: p.name, slug: p.slug, image: p.image, variants });
 });
 
 router.get('/cart', (req, res) => {

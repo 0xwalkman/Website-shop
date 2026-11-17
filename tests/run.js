@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 3123, MOCK_PORT = 4555;
-const SUITES = ['e2e-security', 'e2e-stripe', 'e2e-binance', 'e2e-all'].filter((s) => !process.argv[2] || s.includes(process.argv[2]));
+const SUITES = ['e2e-security', 'e2e-cart', 'e2e-stripe', 'e2e-binance', 'e2e-all'].filter((s) => !process.argv[2] || s.includes(process.argv[2]));
 const NODE = [process.execPath, '--disable-warning=ExperimentalWarning'];
 
 const wait = async (url, ms = 15000) => {
