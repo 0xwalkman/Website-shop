@@ -1,12 +1,18 @@
 <%- include('_head') %>
 <h1 class="page-title">Settings</h1>
 <div class="card">
-  <h2>Payments (Stripe)</h2>
-  <div class="row"><span>Stripe API key</span><span class="status <%= stripeReady ? 'delivered' : 'cancelled' %>"><%= stripeReady ? 'connected' : 'missing' %></span></div>
-  <div class="row"><span>Webhook secret</span><span class="status <%= webhookReady ? 'delivered' : 'pending' %>"><%= webhookReady ? 'connected' : 'missing' %></span></div>
-  <% if (!stripeReady || !webhookReady) { %>
-    <p class="muted small">Set <code>STRIPE_SECRET_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> on the server and restart it. Point a Stripe webhook at <code><%= baseUrl %>/stripe/webhook</code> with the events <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>, <code>checkout.session.async_payment_failed</code>, <code>checkout.session.expired</code> and <code>charge.refunded</code>. See the README for details.</p>
+  <h2>Payments (PayPal)</h2>
+  <div class="row"><span>PayPal app keys</span><span class="status <%= paypalReady ? 'delivered' : 'cancelled' %>"><%= paypalReady ? 'connected' : 'missing' %></span></div>
+  <% if (paypalReady) { %>
+    <div class="row"><span>Mode</span><span class="status <%= paypalLive ? 'delivered' : 'pending' %>"><%= paypalLive ? 'live: real payments' : 'sandbox: test payments only' %></span></div>
   <% } %>
+  <% if (paypalReady && !paypalCurrencyOk) { %>
+    <div class="flash error small">PayPal is hidden at checkout because the store currency (<%= settings.currency.toUpperCase() %>) isn't one PayPal accepts here. Choose USD, EUR, GBP, CAD, AUD or CHF below.</div>
+  <% } %>
+  <% if (!paypalReady) { %>
+    <p class="muted small">Create an app at developer.paypal.com (My Apps &amp; Credentials), then set <code>PAYPAL_CLIENT_ID</code>, <code>PAYPAL_CLIENT_SECRET</code> and <code>PAYPAL_ENV=live</code> (or <code>sandbox</code> to test) on the server and restart it. See the README.</p>
+  <% } %>
+  <p class="muted small">Optional but recommended: in your PayPal app add a webhook to <code><%= baseUrl %>/paypal/webhook</code> with the events <code>CHECKOUT.ORDER.APPROVED</code>, <code>PAYMENT.CAPTURE.COMPLETED</code>, <code>PAYMENT.CAPTURE.DENIED</code> and <code>PAYMENT.CAPTURE.REFUNDED</code>. Payments are also confirmed when customers return from PayPal and by a check every 10 minutes.</p>
 </div>
 <div class="card">
   <h2>Payments (Binance Pay)</h2>

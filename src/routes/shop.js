@@ -2,7 +2,8 @@ const crypto = require('node:crypto');
 const express = require('express');
 const { db, tx, getSettings } = require('../db');
 const { flash, currentAffiliate } = require('../middleware');
-const payments = require('../payments');
+const paypal = require('../paypal');
+const { releaseUnpaid } = require('../orders');
 const binance = require('../binance');
 const { COUNTRIES, countryName } = require('../countries');
 const discounts = require('../discounts');
@@ -224,7 +225,7 @@ router.post('/cart/update', (req, res) => {
   res.redirect('/cart');
 });
 
-/* ---------------- checkout (Stripe or Binance Pay) ---------------- */
+/* ---------------- checkout (PayPal or Binance Pay) ---------------- */
 
 function sessionOrders(req) {
   return req.session.orders || [];
@@ -232,15 +233,16 @@ function sessionOrders(req) {
 
 function paymentMethods() {
   const list = [];
-  if (payments.enabled()) list.push('stripe');
+  if (paypal.enabled() && paypal.SUPPORTED_CURRENCIES.includes(getSettings().currency)) list.push('paypal');
   if (binance.enabled()) list.push('binance');
   return list;
 }
 
-// Closes an unpaid order's payment page (Stripe or Binance) and returns its items to stock.
+// Closes an unpaid order's payment page (PayPal or Binance) and returns its items to stock.
 async function cancelUnpaid(order) {
   if (order.payment_method === 'binance') return binance.cancelOpen(order);
-  if (!order.stripe_session_id || await payments.expireSession(order.stripe_session_id)) payments.releaseUnpaid(order.id);
+  if (order.payment_method === 'paypal') return paypal.cancelOpen(order);
+  releaseUnpaid(order.id); // older orders from a payment method that is no longer used
 }
 
 // If this shopper abandoned an earlier payment page, release that reservation before starting a new one.
@@ -337,22 +339,18 @@ router.post('/checkout', async (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   let redirectTo;
   try {
-    if (method === 'binance') {
-      redirectTo = await binance.createOrder({ order, items: cart.items, baseUrl: res.locals.baseUrl });
-    } else {
-      const session = await payments.createCheckoutSession({ order, items: cart.items, baseUrl: res.locals.baseUrl });
-      db.prepare('UPDATE orders SET stripe_session_id = ? WHERE id = ?').run(session.id, orderId);
-      redirectTo = session.url;
-    }
+    redirectTo = method === 'binance'
+      ? await binance.createOrder({ order, items: cart.items, baseUrl: res.locals.baseUrl })
+      : await paypal.createOrder({ order, items: cart.items, baseUrl: res.locals.baseUrl });
   } catch (err) {
     console.error(`[${method}] Could not open payment page:`, err.message);
-    payments.releaseUnpaid(orderId);
+    releaseUnpaid(orderId);
     return fail('We could not open the payment page. You have not been charged. Please try again.', 502);
   }
   res.redirect(303, redirectTo);
 });
 
-// Stripe and Binance Pay send shoppers here when they press "back" on the payment page.
+// PayPal and Binance Pay send shoppers here when they press "back" on the payment page.
 router.get('/checkout/cancelled/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const order = sessionOrders(req).includes(id) && db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
@@ -375,10 +373,13 @@ router.get('/order/:id', async (req, res) => {
   const allowed = order && (ownedBySession || (req.user && (req.user.is_admin || order.user_id === req.user.id)));
   if (!allowed) return res.status(404).render('error', { title: 'Order not found', message: "We couldn't find that order on this device. If you ordered while logged in, you'll find it under My account." });
 
-  const returning = typeof req.query.session_id === 'string' || req.query.bp === '1';
-  if (typeof req.query.session_id === 'string') order = await payments.syncFromSession(order, req.query.session_id);
-  // Binance: check on every visit while unpaid, so "Refresh" on the waiting screen works.
-  if (order.payment_method === 'binance' && order.status === 'unpaid') order = await binance.sync(order);
+  const returning = req.query.pp === '1' || req.query.bp === '1';
+  // Check with the payment provider on every visit while unpaid, so returning from PayPal/Binance
+  // (and "Refresh" on the waiting screen) confirms the payment.
+  if (order.status === 'unpaid') {
+    if (order.payment_method === 'paypal') order = await paypal.sync(order);
+    else if (order.payment_method === 'binance') order = await binance.sync(order);
+  }
   // The cart is kept until payment succeeds, so a cancelled payment never loses it.
   if (ownedBySession && order.status !== 'unpaid' && order.status !== 'cancelled') {
     req.session.cart = [];

@@ -5,7 +5,11 @@ const express = require('express');
 const { db, tx, setSetting, uniqueSlug } = require('../db');
 const { flash, parseMoney, toArray } = require('../middleware');
 const { balances, NETWORKS } = require('../affiliate');
-const payments = require('../payments');
+const paypal = require('../paypal');
+const { applyStatus } = require('../orders');
+// Binance Pay (and older card orders) are refunded outside the store, then recorded here by hand.
+// PayPal orders are refunded with the "Refund via PayPal" button instead.
+const manualRefundAllowed = (order) => Boolean(order.paid_at) && order.payment_method !== 'paypal';
 const binance = require('../binance');
 const notify = require('../notify');
 const pages = require('../pages');
@@ -14,10 +18,10 @@ const mailer = require('../mailer');
 const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 const ORDER_STATUSES = ['unpaid', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
-// Statuses an admin can set by hand. "refunded" goes through the Stripe refund button instead.
+// Statuses an admin can set by hand. "refunded" is set by the refund flow (PayPal button, or manual for Binance).
 const MANUAL_STATUSES = ['paid', 'shipped', 'delivered', 'cancelled'];
-// Stripe settles these with two decimals, which matches how prices are stored.
-const CURRENCIES = { usd: '$', eur: '€', gbp: '£', cad: 'CA$', aud: 'A$', chf: 'CHF', aed: 'AED', sar: 'SAR', mad: 'MAD' };
+// Currencies PayPal accepts with 2 decimals (Binance Pay converts any of them).
+const CURRENCIES = { usd: '$', eur: '€', gbp: '£', cad: 'CA$', aud: 'A$', chf: 'CHF' };
 
 function removeUpload(file) {
   if (file && file.startsWith('/uploads/')) {
@@ -302,7 +306,7 @@ router.post('/products/:id/delete', (req, res) => {
 
 router.get('/orders', (req, res) => {
   const status = ORDER_STATUSES.includes(req.query.status) ? req.query.status : '';
-  // By default hide checkouts that were never paid (abandoned Stripe pages); they have their own filters.
+  // By default hide checkouts that were never paid (abandoned payment pages); they have their own filters.
   const where = status ? 'WHERE o.status = ?' : "WHERE o.paid_at IS NOT NULL OR o.status NOT IN ('unpaid', 'cancelled')";
   const orders = db.prepare(`
     SELECT o.*, u.name AS affiliate_name, (SELECT SUM(qty) FROM order_items WHERE order_id = o.id) AS item_count
@@ -317,7 +321,11 @@ router.get('/orders/:id', (req, res) => {
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
   const commission = db.prepare(`SELECT c.*, u.name AS affiliate_name, u.email AS affiliate_email
                                   FROM commissions c JOIN users u ON u.id = c.affiliate_id WHERE c.order_id = ?`).get(order.id);
-  res.render('admin/order', { title: `Order #${order.id}`, order, items, commission, statuses: order.payment_method === 'binance' && order.paid_at ? [...MANUAL_STATUSES, 'refunded'] : MANUAL_STATUSES, stripeReady: payments.enabled(), carriers: Object.keys(CARRIERS) });
+  res.render('admin/order', {
+    title: `Order #${order.id}`, order, items, commission,
+    statuses: manualRefundAllowed(order) ? [...MANUAL_STATUSES, 'refunded'] : MANUAL_STATUSES,
+    paypalReady: paypal.enabled(), carriers: Object.keys(CARRIERS),
+  });
 });
 
 // Known carriers get a direct tracking link; anything else goes to 17TRACK, which covers most carriers worldwide.
@@ -344,8 +352,7 @@ function trackingFrom(body) {
 router.post('/orders/:id/status', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   const status = req.body.status;
-  // Binance Pay refunds are made in the Binance merchant dashboard, then recorded here by hand.
-  const allowed = order && (MANUAL_STATUSES.includes(status) || (status === 'refunded' && order.payment_method === 'binance' && order.paid_at));
+  const allowed = order && (MANUAL_STATUSES.includes(status) || (status === 'refunded' && manualRefundAllowed(order)));
   if (!allowed) return res.redirect('/admin/orders');
   const t = trackingFrom(req.body);
   if (status === 'shipped' && order.status !== 'shipped' && !t.number && !req.body.no_tracking) {
@@ -358,7 +365,7 @@ router.post('/orders/:id/status', (req, res) => {
       db.prepare('UPDATE orders SET tracking_carrier = ?, tracking_number = ?, tracking_url = ? WHERE id = ?')
         .run(t.carrier, t.number, t.url, order.id);
     }
-    if (status !== order.status) payments.applyStatus(db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id), status);
+    if (status !== order.status) applyStatus(db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id), status);
   });
   flash(req, 'success', status !== order.status
     ? `Order #${order.id} is now ${status}.${['paid', 'shipped', 'delivered', 'refunded'].includes(status) ? ' The customer has been emailed.' : ''}`
@@ -369,14 +376,14 @@ router.post('/orders/:id/status', (req, res) => {
 router.post('/orders/:id/refund', async (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return res.redirect('/admin/orders');
-  if (order.payment_method !== 'stripe' || !order.stripe_payment_intent || !payments.enabled() || ['unpaid', 'refunded'].includes(order.status)) {
-    flash(req, 'error', 'This order has no Stripe payment to refund.');
+  if (order.payment_method !== 'paypal' || !order.paypal_capture_id || !paypal.enabled() || ['unpaid', 'refunded'].includes(order.status)) {
+    flash(req, 'error', 'This order has no PayPal payment to refund.');
   } else {
     try {
-      await payments.refundOrder(order);
-      flash(req, 'success', `Refunded ${(order.total_cents / 100).toFixed(2)} ${order.currency.toUpperCase()} for order #${order.id}. Items are back in stock and the affiliate commission was cancelled.`);
+      await paypal.refundOrder(order);
+      flash(req, 'success', `Refunded ${(order.total_cents / 100).toFixed(2)} ${order.currency.toUpperCase()} for order #${order.id} through PayPal. Items are back in stock and the affiliate commission was cancelled.`);
     } catch (err) {
-      flash(req, 'error', `Stripe refused the refund: ${err.message}`);
+      flash(req, 'error', `PayPal refused the refund: ${err.message}`);
     }
   }
   res.redirect(`/admin/orders/${order.id}`);
@@ -589,7 +596,7 @@ router.post('/pages/:slug', (req, res) => {
 /* ---------------- settings ---------------- */
 
 router.get('/settings', (req, res) => {
-  res.render('admin/settings', { title: 'Settings', currencies: CURRENCIES, stripeReady: payments.enabled(), webhookReady: Boolean(process.env.STRIPE_WEBHOOK_SECRET), binanceReady: binance.enabled(), binanceCurrency: binance.payCurrency(),
+  res.render('admin/settings', { title: 'Settings', currencies: CURRENCIES, paypalReady: paypal.enabled(), paypalLive: paypal.live(), paypalCurrencyOk: paypal.SUPPORTED_CURRENCIES.includes(res.locals.settings.currency), binanceReady: binance.enabled(), binanceCurrency: binance.payCurrency(),
     smtpReady: mailer.smtpConfigured(),
     emailStats: db.prepare("SELECT status, COUNT(*) AS n FROM emails WHERE created_at >= datetime('now', '-7 days') GROUP BY status").all(),
     failedEmails: db.prepare("SELECT id, to_addr, subject, error, created_at FROM emails WHERE status = 'failed' ORDER BY id DESC LIMIT 5").all() });

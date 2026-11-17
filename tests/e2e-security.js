@@ -60,7 +60,7 @@ function client() {
   for (let i = 0; i < 11; i++) {
     tok = await shopper.csrf('/checkout');
     last = await shopper.req('POST', '/checkout', { form: { _csrf: tok, name: 'Bot Buyer', email: 'bot@x.com', phone: '+1 555 0000', country: 'US',
-      address: '1 Test St', city: 'Testville', payment_method: 'stripe' } });
+      address: '1 Test St', city: 'Testville', payment_method: 'paypal' } });
   }
   check('11th checkout within an hour is refused', last.status === 429, `status=${last.status}`);
   check('only one reservation held at a time', db.prepare("SELECT COUNT(*) n FROM orders WHERE status='unpaid'").get().n === 1);

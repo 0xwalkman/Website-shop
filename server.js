@@ -9,7 +9,8 @@ const multer = require('multer');
 const { db } = require('./src/db');
 const SqliteStore = require('./src/session-store')(session);
 const mw = require('./src/middleware');
-const payments = require('./src/payments');
+const paypal = require('./src/paypal');
+const { releaseUnpaid } = require('./src/orders');
 const binance = require('./src/binance');
 
 const app = express();
@@ -47,17 +48,16 @@ app.get('/healthz', (req, res) => { db.prepare('SELECT 1').get(); res.json({ ok:
 
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
-// Stripe webhook: needs the raw request body to verify the signature, so it is registered
-// before the body parsers, sessions and CSRF checks.
-app.post('/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
-  if (!payments.enabled() || !process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).send('Stripe is not configured');
+// PayPal webhook: only a signal to re-check the order with PayPal's API (see src/paypal.js),
+// so it cannot mark anything paid by itself. Registered before the body parsers and CSRF checks.
+app.post('/paypal/webhook', express.raw({ type: '*/*', limit: '256kb' }), async (req, res) => {
   try {
-    const type = await payments.handleWebhook(req.body, req.get('stripe-signature'));
-    res.json({ received: true, type });
+    if (paypal.enabled()) await paypal.handleWebhook(req.body || Buffer.alloc(0));
   } catch (err) {
-    console.error('[stripe] Webhook rejected:', err.message);
-    res.status(400).send(`Webhook error: ${err.message}`);
+    console.error('[paypal] Webhook handling failed:', err.message);
+    return res.status(500).send('retry later'); // PayPal retries failed deliveries
   }
+  res.sendStatus(200);
 });
 
 // Binance Pay webhook: treated only as a signal to re-check the order with Binance's API
@@ -135,15 +135,18 @@ app.use((err, req, res, next) => {
 
 if (process.env.BACKUPS !== 'off') require('./src/backup').schedule();
 
+// Checkouts started with Stripe before the switch to PayPal can no longer be paid: release their stock.
+for (const o of db.prepare("SELECT id FROM orders WHERE status = 'unpaid' AND payment_method = 'stripe'").all()) releaseUnpaid(o.id);
+
 setInterval(() => {
-  payments.sweepStale().catch((e) => console.error(e));
+  paypal.sweepStale().catch((e) => console.error(e));
   binance.sweepStale().catch((e) => console.error(e));
 }, 10 * 60 * 1000).unref();
 
 app.listen(PORT, () => {
   console.log(`Store running on http://localhost:${PORT}`);
-  if (!payments.enabled() && !binance.enabled()) console.warn('[warn] No payment method configured: set Stripe and/or Binance Pay keys to enable checkout.');
-  if (!payments.enabled()) console.warn('[warn] STRIPE_SECRET_KEY is not set: card payments are off.');
+  if (!paypal.enabled() && !binance.enabled()) console.warn('[warn] No payment method configured: set PayPal and/or Binance Pay keys to enable checkout.');
+  if (!paypal.enabled()) console.warn('[warn] PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are not set: PayPal is off.');
+  else console.log(`[paypal] Using the PayPal ${paypal.live() ? 'LIVE' : 'SANDBOX (test)'} environment.`);
   if (!binance.enabled()) console.warn('[warn] BINANCE_PAY_API_KEY / BINANCE_PAY_SECRET_KEY are not set: Binance Pay is off.');
-  if (payments.enabled() && !process.env.STRIPE_WEBHOOK_SECRET) console.warn('[warn] STRIPE_WEBHOOK_SECRET is not set: payments are only confirmed when shoppers return from Stripe.');
 });

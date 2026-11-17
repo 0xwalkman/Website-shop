@@ -38,7 +38,7 @@ Not the right fit? You can return unworn items in their original condition, with
 
 ## Refunds
 Once we receive and check your return, we refund the items to your **original payment method**:
-- **Card payments:** refunds usually appear within 5-10 business days, depending on your bank.
+- **PayPal:** refunds usually show up within a few days (refunds to a card can take 5-10 business days, depending on your bank).
 - **Binance Pay:** refunds are sent back to your Binance account.
 
 Return shipping costs are paid by the customer unless the item arrived damaged or we sent the wrong item.
@@ -62,7 +62,7 @@ The fastest way to get a different size is to return the original item and place
 - Import duties and taxes charged by your country are not included (see [Shipping](/page/shipping)).
 
 ## Payment
-We accept card payments through Stripe and crypto payments through Binance Pay. We never see or store your full card details.
+We accept payments through PayPal (including cards, where PayPal offers them) and crypto payments through Binance Pay. We never see or store your full card or account details.
 
 ## Returns
 See our [Returns & refunds policy](/page/returns).
@@ -86,14 +86,14 @@ We may update these terms from time to time. The version on this page at the tim
 ## What we collect
 - **Orders:** your name, email, phone number and delivery address, so we can deliver your order and contact you about it.
 - **Accounts:** your name, email and a securely hashed password. Affiliates also provide a crypto wallet address for payouts.
-- **Payments:** handled by Stripe or Binance Pay. We receive confirmation of payment but never your full card details.
+- **Payments:** handled by PayPal or Binance Pay. We receive confirmation of payment but never your full card or account details.
 - **Statistics:** anonymous page-view counts. We don't use advertising trackers or sell your data.
 
 ## Cookies
 We only use cookies the store needs to work: one to keep your cart and login, and one to remember which affiliate link you arrived from (for 30 days). We do not use advertising or tracking cookies.
 
 ## Who we share data with
-Only with services that help us run the store: our payment providers (Stripe, Binance Pay), the shipping carrier delivering your parcel, our email provider and our hosting provider.
+Only with services that help us run the store: our payment providers (PayPal, Binance Pay), the shipping carrier delivering your parcel, our email provider and our hosting provider.
 
 ## How long we keep it
 Order records are kept as long as required for accounting and tax purposes. You can ask us to delete your account at any time.

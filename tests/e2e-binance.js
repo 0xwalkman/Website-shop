@@ -24,7 +24,7 @@ const check = (label, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAI
 
   const v = await (await browser.newContext({ ...phone })).newPage();
   await v.goto(link);
-  check('footer mentions both methods', (await v.textContent('.footer')).includes('Pay by card or Binance Pay'));
+  check('footer mentions both methods', (await v.textContent('.footer')).includes('Pay with PayPal or Binance Pay'));
   const stockM0 = stockOf('M');
   await v.goto(B + '/p/classic-cotton-tee');
   await v.click('label.size:has-text("M")'); await v.fill('#qty', '2');
@@ -90,8 +90,8 @@ const check = (label, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAI
 
   // Card still works
   await v.goto(B + '/p/classic-cotton-tee'); await v.click('label.size:has-text("L")'); await v.click('button:has-text("Buy now")');
-  await checkout('stripe'); await v.click('form.form button[type=submit]');
-  check('card option still goes to Stripe', v.url().startsWith(MOCK + '/pay/'));
+  await checkout('paypal'); await v.click('form.form button[type=submit]');
+  check('PayPal option still goes to PayPal', v.url().startsWith(MOCK + '/ppapprove/'));
   const o5 = lastOrder();
   check('mismatched Binance payment kept for review, not cancelled', q('SELECT status FROM orders WHERE id=?', o4.id).status === 'unpaid');
   await v.click('#pay'); await v.waitForURL(/\/order\/\d+/);
@@ -104,7 +104,7 @@ const check = (label, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAI
   await m.click('form button[type=submit]');
   await m.goto(B + '/admin/orders/' + o3.id);
   check('admin shows Binance Pay', (await m.textContent('main')).includes('Binance Pay'));
-  check('no Stripe refund button on Binance order', !(await m.$('button:has-text("via Stripe")')));
+  check('no PayPal refund button on Binance order', !(await m.$('button:has-text("via PayPal")')));
   await m.click('label.size:has-text("refunded")');
   await m.click('form.form button[type=submit]');
   check('Binance order marked refunded', q('SELECT status FROM orders WHERE id=?', o3.id).status === 'refunded');

@@ -25,7 +25,7 @@ function validateWallet(network, address) {
 
 /**
  * Commission lifecycle (driven by the order status):
- *   order unpaid                 -> no commission yet (created once Stripe confirms payment)
+ *   order unpaid                 -> no commission yet (created once the payment provider confirms payment)
  *   order paid / shipped         -> commission "pending"   (not withdrawable yet)
  *   order delivered              -> commission "approved"  (withdrawable)
  *   order cancelled / refunded   -> commission "cancelled"

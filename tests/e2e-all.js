@@ -168,9 +168,9 @@ const linkIn = (html, re) => { const m = html.match(re); return m && m[0].replac
   await v.fill('[name=address]', '3 Rue de Rivoli'); await v.fill('[name=city]', 'Paris'); await v.fill('[name=postal_code]', '75001');
   check('customs note at checkout', (await v.textContent('.customs-note')).includes('import duties'));
   check('terms agreement line', !!(await v.$('a[href="/page/terms"]')));
-  await v.check('input[name=payment_method][value=stripe]');
+  await v.check('input[name=payment_method][value=paypal]');
   await v.click('form.form button[type=submit]');
-  check('Stripe charged discounted total', (await v.textContent('#amt')) === '6300 usd');
+  check('PayPal charged discounted total', (await v.textContent('#amt')) === '63.00 USD');
   await v.click('#pay');
   await v.waitForURL(/\/order\/\d+/);
   await sleep(500);

@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS orders (
   currency TEXT NOT NULL DEFAULT 'usd',
   affiliate_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   commission_rate REAL NOT NULL DEFAULT 0,
-  payment_method TEXT NOT NULL DEFAULT 'stripe',
+  payment_method TEXT NOT NULL DEFAULT 'paypal',
   stripe_session_id TEXT,
   stripe_payment_intent TEXT,
   binance_trade_no TEXT,
@@ -175,6 +175,9 @@ addColumn('orders', 'tracking_url', 'TEXT');
 addColumn('orders', 'discount_code', 'TEXT');
 addColumn('orders', 'discount_cents', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('orders', 'stripe_coupon_id', 'TEXT');
+addColumn('orders', 'paypal_order_id', 'TEXT');
+addColumn('orders', 'paypal_capture_id', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_paypal ON orders(paypal_order_id)');
 addColumn('order_items', 'color', "TEXT NOT NULL DEFAULT ''");
 addColumn('product_variants', 'color', "TEXT NOT NULL DEFAULT ''");
 addColumn('product_variants', 'compare_at_cents', 'INTEGER');

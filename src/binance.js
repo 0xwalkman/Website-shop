@@ -7,7 +7,7 @@
  */
 const crypto = require('node:crypto');
 const { db, tx } = require('./db');
-const { applyStatus, releaseUnpaid } = require('./payments');
+const { applyStatus, releaseUnpaid } = require('./orders');
 
 const API_BASE = () => (process.env.BINANCE_PAY_API_BASE || 'https://bpay.binanceapi.com').replace(/\/$/, '');
 const enabled = () => Boolean(process.env.BINANCE_PAY_API_KEY && process.env.BINANCE_PAY_SECRET_KEY);
@@ -146,7 +146,7 @@ async function cancelOpen(order) {
   releaseUnpaid(order.id);
 }
 
-// Same safety net as Stripe: check unpaid Binance orders once their payment page has expired.
+// Safety net: check unpaid Binance orders once their payment page has expired.
 async function sweepStale() {
   if (!enabled()) return;
   const stale = db.prepare(`SELECT * FROM orders WHERE status = 'unpaid' AND payment_method = 'binance'

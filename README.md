@@ -9,7 +9,7 @@ A clothing shop built with Node.js, Express, EJS and SQLite (the `node:sqlite` m
 - Product pages with a **photo gallery**, a **color picker**, and sizes that each have their own **price, sale price ("was") and stock**
 - **Discount codes** in the cart and at checkout
 - Checkout with a country picker; **free worldwide shipping** by default; a customs-duties notice
-- **Card payments (Stripe)** and **Binance Pay (crypto)**. Items are held while the customer pays
+- **PayPal** (PayPal account, or card where PayPal offers guest checkout) and **Binance Pay (crypto)**. Items are held while the customer pays
 - Order page with a progress tracker and the **carrier tracking link**
 - **Emails**: order confirmation, shipped (with tracking), delivered, refunded, cancelled, password reset, affiliate payouts, and a new-order alert for you
 - Policy pages (Shipping, Returns, Terms, Privacy, Affiliate rules), a **Contact** form, a floating **WhatsApp** button, and a cookie notice
@@ -19,13 +19,13 @@ A clothing shop built with Node.js, Express, EJS and SQLite (the `node:sqlite` m
 **Admin panel** (`/admin`)
 - Dashboard, plus **Statistics** (visitors, orders, conversion, top products, where visitors come from), counted without cookies or personal data
 - **Products**: several photos, colors, sizes, prices, sale prices and stock. **Categories**: add, edit and delete
-- **Orders**: paid orders appear automatically. Mark them shipped (with a tracking number) and delivered, cancel them, or refund through Stripe
+- **Orders**: paid orders appear automatically. Mark them shipped (with a tracking number) and delivered, cancel them, or refund through PayPal with one button
 - **Discount codes**: percent or fixed amount off, with optional minimum order, use limit and expiry date
 - **Affiliates** and **Withdrawals**: pay USDC, record the transaction hash, and the affiliate is emailed
 - **Pages**: edit the policy pages (they start with template text that uses your Settings)
 - **Team**: invite **staff** (products, orders and stats only) or other **owners**
 - **Security**: **two-step login** with an authenticator app
-- **Settings**: store details, contact email and WhatsApp, shipping and return promises, currency, commission rate, minimum withdrawal, and the status of Stripe, Binance Pay and email
+- **Settings**: store details, contact email and WhatsApp, shipping and return promises, currency, commission rate, minimum withdrawal, and the status of PayPal, Binance Pay and email
 
 **Affiliate program**
 - Every registered user gets a personal link: `/r/CODE`. Adding `?ref=CODE` to any page works too
@@ -50,8 +50,8 @@ Open http://localhost:3000. Log in with the admin account to reach `/admin`.
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `3000` | |
-| `STRIPE_SECRET_KEY` | none | **Required to take payments.** `sk_live_…`, or `sk_test_…` for testing. Checkout is disabled without it |
-| `STRIPE_WEBHOOK_SECRET` | none | `whsec_…` from your Stripe webhook (see below). Strongly recommended |
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | none | Turns on PayPal. From developer.paypal.com → My Apps & Credentials (see below) |
+| `PAYPAL_ENV` | `sandbox` | `sandbox` for test payments, `live` for real money |
 | `BINANCE_PAY_API_KEY` / `BINANCE_PAY_SECRET_KEY` | none | Turns on Binance Pay. From the Binance merchant portal (see below) |
 | `BINANCE_PAY_CURRENCY` | `USDT` | Coin USD orders are charged in, 1:1 (`USDT` or `USDC`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | none | Your email provider. Without them, emails are saved to `data/outbox/` |
@@ -66,23 +66,28 @@ Open http://localhost:3000. Log in with the admin account to reach `/admin`.
 
 Uploaded photos are resized (max 1600px), converted to WebP and stripped of metadata such as GPS location, then saved in `./uploads`. Back up `data/` and `uploads/`.
 
-## Setting up Stripe
+## Setting up PayPal
 
-1. In the Stripe Dashboard, open **Developers → API keys** and copy the **secret key** into `STRIPE_SECRET_KEY`.
-2. Open **Developers → Webhooks → Add endpoint**:
-   - URL: `https://YOUR-DOMAIN/stripe/webhook`
-   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`
-   - Copy the endpoint's **signing secret** into `STRIPE_WEBHOOK_SECRET`.
-3. Set `BASE_URL` to your public `https://` address so Stripe sends customers back to the right place and shows product photos.
-4. Restart the site. **Admin → Settings** shows whether Stripe is connected.
+1. You need a PayPal **Business** account.
+2. Go to **developer.paypal.com → My Apps & Credentials**, choose **Live** (or **Sandbox** to test) and create an app.
+3. Copy the app's **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`, and set `PAYPAL_ENV=live` (or `sandbox`).
+4. Recommended: in the same app, add a **webhook** to `https://YOUR-DOMAIN/paypal/webhook` with the events `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED` and `PAYMENT.CAPTURE.REFUNDED`.
+5. Set `BASE_URL` to your public `https://` address so PayPal sends customers back to the right place, then restart. **Admin → Settings** shows whether PayPal is connected and whether it is in sandbox or live mode.
 
-To test locally, use `sk_test_…` keys and run `stripe listen --forward-to localhost:3000/stripe/webhook` with the Stripe CLI. Pay with card `4242 4242 4242 4242`, any future date and any CVC.
+To test, keep `PAYPAL_ENV=sandbox` and pay with one of the sandbox **personal** test accounts PayPal creates for you (developer.paypal.com → Testing Tools → Sandbox Accounts).
 
-How payments work:
-- Checkout creates an *awaiting payment* order that holds the items, then sends the customer to Stripe.
-- When Stripe confirms the payment (by webhook, or when the customer returns), the order becomes **paid**. The amount and currency are checked against the order first.
-- Pressing "back" on Stripe, abandoning the page, or letting it expire (1 hour) cancels the order and puts the items back in stock. Nothing is charged.
-- If a webhook is ever missed, the site checks unpaid orders with Stripe every 10 minutes.
+How PayPal payments work:
+- Checkout creates an *awaiting payment* order that holds the items, then sends the customer to PayPal with the items, discount and total.
+- When the customer comes back, the site captures the payment. The order becomes **paid** only once PayPal reports the capture as completed for exactly the right amount and currency.
+- **Pressing "cancel" on PayPal**, or abandoning the page, cancels the order and puts the items back in stock; nothing is charged. If someone approves an old checkout after it was cancelled, it is **not** captured, so they are never charged for items that went back on sale.
+- **Declined card:** the order is cancelled and the customer is told they weren't charged; their cart is kept.
+- **Payment held for review by PayPal:** the order keeps its items until PayPal finishes the review (webhook or the 10-minute check).
+- **Customer approved but closed the tab:** the webhook (or the 10-minute check) captures the payment anyway.
+- Webhook messages are only used as a signal to re-check the order with PayPal's API, so a fake message cannot mark an order paid.
+- **Refunds:** use **Refund via PayPal** on the order page. A refund made directly in your PayPal account is also picked up via the webhook.
+- **Currencies:** PayPal is offered for USD, EUR, GBP, CAD, AUD and CHF.
+
+> Built against PayPal's REST Orders v2 API (field names checked against PayPal's official Node SDK) and tested against a simulated PayPal. Before going live, do one real sandbox payment and one small live payment.
 
 ## Setting up Binance Pay
 
@@ -103,10 +108,11 @@ How Binance Pay works:
 
 ## Tests
 
-`npm test` runs four browser test suites against a real server, a fresh database and fake Stripe and Binance Pay APIs, so no money moves and no network is needed. Install Playwright once first: `npm i --no-save playwright && npx playwright install chromium`. The same tests run automatically on GitHub for every push (`.github/workflows/test.yml`).
+`npm test` runs five browser test suites against a real server, a fresh database and fake PayPal and Binance Pay APIs, so no money moves and no network is needed. Install Playwright once first: `npm i --no-save playwright && npx playwright install chromium`. The same tests run automatically on GitHub for every push (`.github/workflows/test.yml`).
 
 - `e2e-security`: login redirects, Host-header poisoning, CSRF, checkout rate limits, private pages
-- `e2e-stripe` / `e2e-binance`: paying, cancelling, abandoning, expiry, forged webhooks, wrong amounts, refunds
+- `e2e-paypal` / `e2e-binance`: paying, cancelling, abandoning, declined cards, payments held for review, forged webhooks, wrong amounts, refunds
+- `e2e-cart`: quick add, adding without reloading, stock limits, cart steppers, no-JavaScript fallback
 - `e2e-all`: emails, password reset, 2FA, staff, photos, colors, sale prices, discounts, tracking, pages, SEO, stats
 
 ## Lost access to two-step login?

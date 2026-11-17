@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const { db } = require('./db');
 
 const SALT = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-const SKIP = /^\/(admin|account|public|uploads|stripe|binance|order|reset|login|logout|forgot|r\/)/;
+const SKIP = /^\/(admin|account|public|uploads|stripe|paypal|binance|order|reset|login|logout|forgot|r\/)/;
 const BOTS = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|discord|curl|wget|python|headless|lighthouse/i;
 
 const addView = db.prepare(`INSERT INTO page_views (day, path, referrer, views) VALUES (?, ?, ?, 1)

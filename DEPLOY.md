@@ -8,7 +8,7 @@ This guide takes the store from this repository to a live, secure website. Budge
 |---|---|---|
 | A domain | Namecheap, Cloudflare, GoDaddy | ~$10-15/year |
 | A server | Hetzner, DigitalOcean, Vultr, Contabo (Ubuntu, 1 GB RAM is enough to start) | ~$5-7/month |
-| Stripe account | stripe.com (business verification required) | per transaction |
+| PayPal Business account | paypal.com/business | per transaction |
 | Binance Pay merchant account | merchant.binance.com | per transaction |
 | Email sending (SMTP) | Resend, Postmark, Brevo, Mailgun, or Google Workspace | free tiers available |
 
@@ -38,13 +38,14 @@ docker compose exec store node --disable-warning=ExperimentalWarning scripts/res
 
 ## 3. Connect payments
 
-**Stripe** (Dashboard → Developers):
-1. Copy the secret key into `STRIPE_SECRET_KEY`.
-2. Webhooks → Add endpoint → `https://yourdomain.com/stripe/webhook` with events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+**PayPal** (developer.paypal.com → My Apps & Credentials → Live → create an app):
+1. Copy the Client ID and Secret into `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` and set `PAYPAL_ENV=live`.
+2. In the app, add a webhook to `https://yourdomain.com/paypal/webhook` with events `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.REFUNDED`.
+3. Test first with `PAYPAL_ENV=sandbox` and the sandbox app's keys.
 
 **Binance Pay** (merchant portal → API management): copy the API key and secret into `BINANCE_PAY_API_KEY` / `BINANCE_PAY_SECRET_KEY`. No webhook setup is needed; each order tells Binance where to notify.
 
-Restart (`docker compose up -d`). **Admin → Settings** shows the status of Stripe, Binance Pay and email.
+Restart (`docker compose up -d`). **Admin → Settings** shows the status of PayPal, Binance Pay and email.
 
 ## 4. Connect email
 
@@ -60,7 +61,7 @@ Until SMTP is set, emails are saved in `data/outbox/` instead of being sent, so 
 - [ ] Admin → Settings: store name, contact email, WhatsApp, business details, shipping and return times
 - [ ] Admin → Pages: read and adjust **every** policy page (starter text, not legal advice)
 - [ ] Demo products deleted (or started with `SEED_DEMO=false`), real products and photos added
-- [ ] Test order **paid by card** (use a real card for a cheap item, then refund it from Admin)
+- [ ] Test order **paid with PayPal** in sandbox mode, then one small **live** PayPal payment, refunded from Admin with **Refund via PayPal**
 - [ ] Test order **paid with Binance Pay** (small amount), then refund it from the Binance merchant dashboard and mark it refunded
 - [ ] Order confirmation, shipping and password-reset emails arrive (check spam)
 - [ ] Shipped an order with a tracking number and opened the tracking link from the email

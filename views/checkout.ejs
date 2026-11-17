@@ -31,12 +31,12 @@
       <h2>Payment</h2>
       <% const chosen = methods.includes(values.payment_method) ? values.payment_method : methods[0]; %>
       <div class="pay-options">
-        <% if (methods.includes('stripe')) { %>
+        <% if (methods.includes('paypal')) { %>
           <label class="pay-option">
-            <input type="radio" name="payment_method" value="stripe" <%= chosen === 'stripe' ? 'checked' : '' %>>
+            <input type="radio" name="payment_method" value="paypal" <%= chosen === 'paypal' ? 'checked' : '' %>>
             <span>
-              <strong>💳 Card</strong>
-              <small>Visa, Mastercard and more, on Stripe's secure page. Your card details never touch our servers.</small>
+              <strong>🅿️ PayPal</strong>
+              <small>Pay with your PayPal account, or with a card on PayPal's secure page where available. Your payment details never touch our servers.</small>
             </span>
           </label>
         <% } %>

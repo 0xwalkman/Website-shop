@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 3123, MOCK_PORT = 4555;
-const SUITES = ['e2e-security', 'e2e-cart', 'e2e-stripe', 'e2e-binance', 'e2e-all'].filter((s) => !process.argv[2] || s.includes(process.argv[2]));
+const SUITES = ['e2e-security', 'e2e-cart', 'e2e-paypal', 'e2e-binance', 'e2e-all'].filter((s) => !process.argv[2] || s.includes(process.argv[2]));
 const NODE = [process.execPath, '--disable-warning=ExperimentalWarning'];
 
 const wait = async (url, ms = 15000) => {
@@ -27,7 +27,7 @@ async function runSuite(name) {
     BASE_URL: `http://localhost:${PORT}`, APP_URL: `http://localhost:${PORT}`, MOCK_URL: `http://localhost:${MOCK_PORT}`,
     SESSION_SECRET: 'test-secret-test-secret-test-secret-123',
     ADMIN_EMAIL: 'admin@store.local', ADMIN_PASSWORD: 'admin12345',
-    STRIPE_SECRET_KEY: 'sk_test_mock', STRIPE_WEBHOOK_SECRET: 'whsec_test_mock', STRIPE_API_BASE: `http://localhost:${MOCK_PORT}`,
+    PAYPAL_CLIENT_ID: 'pp_client_mock', PAYPAL_CLIENT_SECRET: 'pp_secret_mock', PAYPAL_API_BASE: `http://localhost:${MOCK_PORT}`,
     BINANCE_PAY_API_KEY: 'bp_key_mock', BINANCE_PAY_SECRET_KEY: 'bp_secret_mock', BINANCE_PAY_API_BASE: `http://localhost:${MOCK_PORT}`,
     SMTP_HOST: '', TEST_DB: path.join(dataDir, 'store.db'),
   };

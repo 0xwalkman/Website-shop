@@ -64,9 +64,9 @@ function locals(req, res, next) {
   res.locals.settings = settings;
   res.locals.freeShipping = settings.shipping_cents === 0; // drives the "free worldwide shipping" copy
   // Payment wording follows whichever payment methods are actually configured.
-  const card = Boolean(process.env.STRIPE_SECRET_KEY);
+  const pp = Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
   const bpay = Boolean(process.env.BINANCE_PAY_API_KEY && process.env.BINANCE_PAY_SECRET_KEY);
-  res.locals.payLabel = card && bpay ? 'Pay by card or Binance Pay' : card ? 'Secure card payments by Stripe' : bpay ? 'Pay with Binance Pay' : 'Secure checkout';
+  res.locals.payLabel = pp && bpay ? 'Pay with PayPal or Binance Pay' : pp ? 'Secure payments with PayPal' : bpay ? 'Pay with Binance Pay' : 'Secure checkout';
   res.locals.user = req.user || null;
   res.locals.path = req.path;
   res.locals.flash = req.session.flash || null;

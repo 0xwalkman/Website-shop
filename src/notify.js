@@ -38,7 +38,7 @@ function orderStatus(orderId, status) {
     });
     const notify = s.admin_notify_email || s.contact_email;
     if (notify) {
-      queue(notify, `💰 New order #${o.id}: ${money(o.total_cents, s)} (${o.payment_method === 'binance' ? 'Binance Pay' : 'card'})`, {
+      queue(notify, `💰 New order #${o.id}: ${money(o.total_cents, s)} (${o.payment_method === 'binance' ? 'Binance Pay' : 'PayPal'})`, {
         heading: `New paid order #${o.id}`,
         blocks: [`${o.customer_name} (${o.email}) just paid. Ship to: ${address(o)}.`, summaryRows(o, s)],
         button: { label: 'Open in admin', url: `${siteUrl()}/admin/orders/${o.id}` },
@@ -64,8 +64,8 @@ function orderStatus(orderId, status) {
   } else if (status === 'refunded') {
     queue(o.email, `Refund for order #${o.id}`, {
       heading: 'Your refund is on its way',
-      blocks: [`We've refunded ${money(o.total_cents, s)} for order #${o.id} to your original payment method (${o.payment_method === 'binance' ? 'your Binance account' : 'your card'}).`,
-        o.payment_method === 'binance' ? 'Binance refunds usually arrive within minutes.' : 'Card refunds usually take 5-10 business days to appear, depending on your bank.'],
+      blocks: [`We've refunded ${money(o.total_cents, s)} for order #${o.id} to your original payment method (${o.payment_method === 'binance' ? 'your Binance account' : o.payment_method === 'paypal' ? 'your PayPal account or card' : 'your card'}).`,
+        o.payment_method === 'binance' ? 'Binance refunds usually arrive within minutes.' : 'PayPal refunds usually show up within a few days; refunds to a card can take 5-10 business days, depending on your bank.'],
       button: { label: 'View your order', url: orderLink(o) },
     });
   } else if (status === 'cancelled' && o.paid_at) {
